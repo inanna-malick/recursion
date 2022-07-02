@@ -1,7 +1,3 @@
-use std::{collections::HashMap, hash::Hash};
-
-use petgraph::{algo::toposort, graph::NodeIndex, Directed, Graph};
-
 use petgraph_schemes::*;
 
 fn main() {
