@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d3e933b82d7c4bc95b165debcff3546ab164844f8387ca70d7843bdf2dbbbcc4 # shrinks to expr = Add(LiteralInt(0), Add(LiteralInt(15933286422907379820), LiteralInt(2513457650802171796)))
+cc ebd50ed9630931321f362a32db9f49c1f8c9e8e7b088fa9029aaeff5d97eac31 # shrinks to expr = Add(Sub(LiteralInt(0), LiteralInt(1)), LiteralInt(0))
+cc edc9f362b9ebf1493fe25f9d4f197174abf849cff2e10d2dc1f131faf1bbba46 # shrinks to expr = Mul(Mul(Mul(LiteralInt(394), LiteralInt(11550)), LiteralInt(3672)), Mul(LiteralInt(32326), LiteralInt(17075)))
