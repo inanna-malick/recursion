@@ -36,6 +36,7 @@ pub enum ExprAST {
     LiteralInt(i64),
 }
 
+#[cfg(test)]
 fn naive_eval(expr: Box<ExprAST>) -> i64 {
     match *expr {
         ExprAST::Add(a, b) => naive_eval(a) + naive_eval(b),
@@ -45,6 +46,7 @@ fn naive_eval(expr: Box<ExprAST>) -> i64 {
     }
 }
 
+#[cfg(test)]
 fn arb_expr() -> impl Strategy<Value = ExprAST> {
     let leaf = prop_oneof![any::<i8>().prop_map(|x| ExprAST::LiteralInt(x as i64)),];
     leaf.prop_recursive(
@@ -74,14 +76,18 @@ pub enum Expr<A> {
     LiteralInt(i64),
 }
 
-fn fmap<A, B, F: FnMut(&A) -> B>(e: &Expr<A>, mut f: F) -> Expr<B> {
-    match e {
-        Expr::Add(a, b) => Expr::Add(f(a), f(b)),
-        Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
-        Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
-        Expr::LiteralInt(x) => Expr::LiteralInt(*x),
-    }
+fn expr_leaves<A>(e: &Expr<A>) -> impl Iterator<Item = &A> {
+    let slice = match e {
+        Expr::Add(a, b) => vec![a,b],
+        Expr::Sub(a, b) => vec![a,b],
+        Expr::Mul(a, b) => vec![a,b],
+        Expr::LiteralInt(_) => Vec::with_capacity(0),
+    };
+
+    slice.into_iter()
+
 }
+
 
 fn fmap_into<A, B, F: FnMut(A) -> B>(e: Expr<A>, mut f: F) -> Expr<B> {
     match e {
@@ -106,9 +112,12 @@ fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Graph<Expr<EdgeIdx>, EdgeIdx, 
     let mut frontier: Vec<(usize, A)> = Vec::new();
     frontier.push((0, a));
 
+    // we don't have graph indices yet so we create an internal index via monotonic increase of usize
+    // start with '1' because the frontier already has 1 value
     let mut next_idx: usize = 1;
 
-    let mut nodes: Vec<(usize, Expr<usize>)> = Vec::new();
+    // collect nodes to create, neccessary because each node are created before their children are expanded from seed values
+    let mut nodes_to_create: Vec<(usize, Expr<usize>)> = Vec::new();
 
     while let Some((node_idx, seed)) = frontier.pop() {
         let node = coalg(seed);
@@ -120,10 +129,9 @@ fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Graph<Expr<EdgeIdx>, EdgeIdx, 
             idx
         });
 
-        nodes.push((node_idx, node));
+        nodes_to_create.push((node_idx, node));
     }
 
-    let mut graph = Graph::new();
 
     // assume topo ordering, start with leaf nodes (at end) and insert backwards.
     // this works b/c definitionally, nodes precede their children because they
@@ -133,18 +141,21 @@ fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Graph<Expr<EdgeIdx>, EdgeIdx, 
     //       just generate duplicate branches w/ no structural sharing, it's fine. that's not even required.
     let mut idx_to_graph_idx = HashMap::new();
 
-    for (idx, expr) in nodes.into_iter().rev() {
+    let mut graph = Graph::new();
+
+    // boilerplate - build graph from nodes_to_create
+    for (idx, expr) in nodes_to_create.into_iter().rev() {
         // collect edges to add before adding node
         let mut edges_to_add: Vec<(NodeIndex, usize)> = Vec::new();
-        fmap(&expr, |x| {
+        for edge in expr_leaves(&expr) {
             // can just remove mappings b/c each is only used once (no structural sharing yet)
             let to_graph_idx = idx_to_graph_idx
-                .remove(x)
+                .remove(edge)
                 .ok_or("broken link during 'ana'")
                 .unwrap();
 
-            edges_to_add.push((to_graph_idx, *x))
-        });
+            edges_to_add.push((to_graph_idx, *edge))
+        }
 
         let graph_idx = graph.add_node(expr);
         for (to, weight) in edges_to_add.into_iter() {
@@ -169,9 +180,8 @@ fn cata<A, F: Fn(Expr<&A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, alg
     for idx in topo_order.into_iter().rev() {
         let alg_res = {
             let node = g.node_weight(idx).unwrap();
-            // NOTE: may want other direction, depends on topo sort results, currently just defaults to outgoing edges
             let edges = g.edges(idx);
-            // NOTE I think that the second node in the edgeref is what I want,
+            // NOTE I think that the second node in the edgeref is ALWAYS what I want,
             // if not or if nondeterministic order can compare both to current idx and take one that !=
             let edge_map: HashMap<EdgeIdx, NodeIndex> =
                 edges.map(|e| (*e.weight(), e.node[1])).collect();
