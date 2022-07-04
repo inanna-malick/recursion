@@ -3,6 +3,7 @@ pub mod db;
 use crate::db::DBKey;
 use crate::db::DB;
 use futures::future;
+use futures::future::BoxFuture;
 use futures::FutureExt;
 use petgraph::{algo::toposort, graph::NodeIndex, Directed, Graph};
 use std::collections::HashMap;
@@ -35,6 +36,124 @@ pub fn eval(db: &HashMap<DBKey, i64>, g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>
 }
 
 type EvalError = String;
+
+// NOTE: may be sufficiently non-idiomatic to want to avoid
+// async fn async_alg<A, B>(e: Expr<Box<dyn Future<Output = A>>>, f: Fn(&Expr<A>) -> B) -> B {
+//     match expr {
+//         Expr::Add(a, b) => {
+//             // TODO: join with early termination on Err
+//             let (a,b) = future::join(a, b).await;
+//             future::ok(f(a + b).boxed()
+//         },
+//         Expr::Sub(a, b) => future::ok(a - b).boxed(),
+//         Expr::Mul(a, b) => future::ok(a * b).boxed(),
+//         Expr::LiteralInt(x) => future::ok(x).boxed(),
+//         Expr::DatabaseRef(key) => {
+//             let f = async move { db.get(key).await.map_err(|x| x.to_string()) };
+//             f.boxed()
+//         }
+//     }
+// }
+
+// async fn cata_async_2<
+//     'a,
+//     A: Send + Sync + 'a,
+//     E: Send + 'a,
+//     F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
+// >(
+//     g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
+//     alg: F,
+// ) -> Result<A, E> {
+//     let execution_graph = cata(g, move |e| cata_async_helper(e, alg));
+
+//     execution_graph.await
+// }
+
+// given an async fun, build an execution graph from cata async
+fn cata_async_helper<
+    'a,
+    A: Send + 'a,
+    E: 'a,
+    F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
+>(
+    e: Expr<BoxFuture<'a, Result<A, E>>>,
+    f: F,
+) -> BoxFuture<'a, Result<A, E>> {
+    async move {
+        match e {
+            Expr::Add(a, b) => {
+                // TODO: join with early termination on Err
+                let (a, b) = future::try_join(a, b).await?;
+                let res = f(Expr::Add(a, b)).await?;
+                Ok(res)
+            }
+            Expr::Sub(a, b) => {
+                // TODO: try_join with early termination on Err
+                let (a, b) = future::try_join(a, b).await?;
+                let res = f(Expr::Sub(a, b)).await?;
+                Ok(res)
+            }
+
+            Expr::Mul(a, b) => {
+                // TODO: try_join with early termination on Err
+                let (a, b) = future::try_join(a, b).await?;
+                let res = f(Expr::Mul(a, b)).await?;
+                Ok(res)
+            }
+
+            Expr::LiteralInt(x) => {
+                let res = f(Expr::LiteralInt(x)).await?;
+                Ok(res)
+            }
+            Expr::DatabaseRef(key) => {
+                let res = f(Expr::DatabaseRef(key)).await?;
+                Ok(res)
+            }
+        }
+    }
+    .boxed()
+}
+
+// more viable, but also probably non-idiomatic - just have special-cased async
+fn postgres_alg<'a>(db: &'a DB, e: Expr<BoxFuture<'a, i64>>) -> BoxFuture<'a, Result<i64, String>> {
+    async move {
+        match e {
+            Expr::Add(a, b) => {
+                // TODO: join with early termination on Err
+                let (a, b) = future::join(a, b).await;
+                Ok(a + b)
+            }
+            Expr::Sub(a, b) => {
+                // TODO: join with early termination on Err
+                let (a, b) = future::join(a, b).await;
+                Ok(a - b)
+            }
+
+            Expr::Mul(a, b) => {
+                // TODO: join with early termination on Err
+                let (a, b) = future::join(a, b).await;
+                Ok(a * b)
+            }
+
+            Expr::LiteralInt(x) => Ok(x),
+            Expr::DatabaseRef(key) => db.get(key).await.map_err(|x| x.to_string()),
+        }
+    }
+    .boxed()
+}
+
+// pub async fn eval_postgres_2(
+//     db: &DB,
+//     g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
+// ) -> Result<i64, EvalError> {
+//     let f = cata(&g, |node| {
+//             let f = async move {  };
+//             f.boxed()
+//     }
+//     );
+
+//     f.await
+// }
 
 // forget about type checking, too many match statements. check this out instead:
 pub async fn eval_postgres(
@@ -233,7 +352,8 @@ fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Graph<Expr<EdgeIdx>, EdgeIdx, 
 
 // NOTE: assumes that there is one node that is the 'head' node, which will always be at the beginning of a topo sort
 // NOTE: can work with graph subsets later, with specified head nodes and etc
-fn cata<A, F: FnMut(Expr<&A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, mut alg: F) -> A {
+// NOTE NOTE NOTE: does not work with grpahs, b/c that makes ownership cleaner
+fn cata<A, F: FnMut(Expr<A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, mut alg: F) -> A {
     let topo_order = toposort(&g, None).expect("graph should not have cycles");
 
     let head_node = topo_order[0]; // throws error if empty graph, TODO/FIXME (maybe?)
@@ -252,8 +372,8 @@ fn cata<A, F: FnMut(Expr<&A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, 
             let node =
                 traverse_into(*node, |x| edge_map.remove(&x).ok_or("ref not in edge map")).unwrap();
             // cannot remove result from map (to acquire ownership) because doing so limits us to trees and would cause failures on DAGs
-            let node =
-                traverse_into(node, |x| results.get(&x).ok_or("node not in result map")).unwrap();
+            let node = traverse_into(node, |x| results.remove(&x).ok_or("node not in result map"))
+                .unwrap();
             alg(node)
         };
         results.insert(idx, alg_res);
