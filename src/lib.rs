@@ -1,6 +1,12 @@
-use std::collections::HashMap;
+pub mod db;
 
+use crate::db::DBKey;
+use crate::db::DB;
+use futures::future;
+use futures::FutureExt;
 use petgraph::{algo::toposort, graph::NodeIndex, Directed, Graph};
+use std::collections::HashMap;
+use std::future::Future;
 
 // TODO/FIXME: test only
 // Bring the macros and other important things into scope.
@@ -13,17 +19,40 @@ pub fn from_ast(ast: Box<ExprAST>) -> Graph<Expr<EdgeIdx>, EdgeIdx, Directed> {
         ExprAST::Sub(a, b) => Expr::Sub(a, b),
         ExprAST::Mul(a, b) => Expr::Mul(a, b),
         ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
+        ExprAST::DatabaseRef(x) => Expr::DatabaseRef(x),
     })
 }
 
 // wow, this is surprisingly easy - can add type checking to make it really pop!
-pub fn eval(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>) -> i64 {
+pub fn eval(db: &HashMap<DBKey, i64>, g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>) -> i64 {
     cata(g, |node| match node {
         Expr::Add(a, b) => a + b,
         Expr::Sub(a, b) => a - b,
         Expr::Mul(a, b) => a * b,
         Expr::LiteralInt(x) => x,
+        Expr::DatabaseRef(x) => *db.get(&x).expect("cata eval db lookup failed"),
     })
+}
+
+type EvalError = String;
+
+// forget about type checking, too many match statements. check this out instead:
+pub async fn eval_postgres(
+    db: &DB,
+    g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
+) -> Result<i64, EvalError> {
+    let f = cata_async(&g, |node| match node {
+        Expr::Add(a, b) => future::ok(a + b).boxed(),
+        Expr::Sub(a, b) => future::ok(a - b).boxed(),
+        Expr::Mul(a, b) => future::ok(a * b).boxed(),
+        Expr::LiteralInt(x) => future::ok(x).boxed(),
+        Expr::DatabaseRef(key) => {
+            let f = async move { db.get(key).await.map_err(|x| x.to_string()) };
+            f.boxed()
+        }
+    });
+
+    f.await
 }
 
 // NOTE: using this instead of a parsed JSON AST or some other similar serialized repr for conciseness
@@ -34,22 +63,42 @@ pub enum ExprAST {
     Sub(Box<ExprAST>, Box<ExprAST>),
     Mul(Box<ExprAST>, Box<ExprAST>),
     LiteralInt(i64),
+    DatabaseRef(DBKey),
+}
+
+impl ExprAST {
+    #[cfg(test)]
+    fn keys(&self) -> Vec<DBKey> {
+        let mut keys = Vec::new();
+        // TODO: totally unneeded clone here, fixme
+        cata(from_ast(Box::new(self.clone())), |expr| match expr {
+            Expr::DatabaseRef(k) => keys.push(k),
+            _ => {}
+        });
+
+        keys
+    }
 }
 
 #[cfg(test)]
-fn naive_eval(expr: Box<ExprAST>) -> i64 {
+fn naive_eval(db: &HashMap<DBKey, i64>, expr: Box<ExprAST>) -> i64 {
     match *expr {
-        ExprAST::Add(a, b) => naive_eval(a) + naive_eval(b),
-        ExprAST::Sub(a, b) => naive_eval(a) - naive_eval(b),
-        ExprAST::Mul(a, b) => naive_eval(a) * naive_eval(b),
+        ExprAST::Add(a, b) => naive_eval(db, a) + naive_eval(db, b),
+        ExprAST::Sub(a, b) => naive_eval(db, a) - naive_eval(db, b),
+        ExprAST::Mul(a, b) => naive_eval(db, a) * naive_eval(db, b),
+        ExprAST::DatabaseRef(x) => *db.get(&x).expect("naive eval db lookup failed"),
         ExprAST::LiteralInt(x) => x,
     }
 }
 
 #[cfg(test)]
-fn arb_expr() -> impl Strategy<Value = ExprAST> {
-    let leaf = prop_oneof![any::<i8>().prop_map(|x| ExprAST::LiteralInt(x as i64)),];
-    leaf.prop_recursive(
+fn arb_expr() -> impl Strategy<Value = (ExprAST, HashMap<DBKey, i64>)> {
+    // TODO: figure out getting db values out, idk flatmap map to generate tuple of expr and DB state I guess
+    let leaf = prop_oneof![
+        any::<i8>().prop_map(|x| ExprAST::LiteralInt(x as i64)),
+        any::<u32>().prop_map(|u| ExprAST::DatabaseRef(DBKey(u)))
+    ];
+    let expr = leaf.prop_recursive(
         8,   // 8 levels deep
         256, // Shoot for maximum size of 256 nodes
         10,  // We put up to 10 items per collection
@@ -63,31 +112,44 @@ fn arb_expr() -> impl Strategy<Value = ExprAST> {
                     .prop_map(|(a, b)| ExprAST::Mul(Box::new(a), Box::new(b))),
             ]
         },
-    )
+    );
+
+    // TODO: generate a bunch of i64's and assign them to keys here, 1 per key
+    // TODO: generate vec of fixed size - size of keys list, then map over it and zip with keys to get db state
+    expr.prop_flat_map(|e| {
+        let db = e
+            .keys()
+            .into_iter()
+            .map(|k| any::<i8>().prop_map(move |v| (k, v as i64)))
+            .collect::<Vec<_>>()
+            .prop_map(|kvs| kvs.into_iter().collect::<HashMap<DBKey, i64>>());
+
+        // fixme remove clone
+        db.prop_map(move |db| (e.clone(), db))
+    })
 }
 
 type EdgeIdx = usize;
 
-// TODO: borrowed instead of cloned, mb
+#[derive(Debug, Clone, Copy)]
 pub enum Expr<A> {
     Add(A, A),
     Sub(A, A),
     Mul(A, A),
     LiteralInt(i64),
+    DatabaseRef(DBKey),
 }
 
 fn expr_leaves<A>(e: &Expr<A>) -> impl Iterator<Item = &A> {
     let slice = match e {
-        Expr::Add(a, b) => vec![a,b],
-        Expr::Sub(a, b) => vec![a,b],
-        Expr::Mul(a, b) => vec![a,b],
-        Expr::LiteralInt(_) => Vec::with_capacity(0),
+        Expr::Add(a, b) => vec![a, b],
+        Expr::Sub(a, b) => vec![a, b],
+        Expr::Mul(a, b) => vec![a, b],
+        Expr::LiteralInt(_) | Expr::DatabaseRef(_) => Vec::with_capacity(0),
     };
 
     slice.into_iter()
-
 }
-
 
 fn fmap_into<A, B, F: FnMut(A) -> B>(e: Expr<A>, mut f: F) -> Expr<B> {
     match e {
@@ -95,15 +157,17 @@ fn fmap_into<A, B, F: FnMut(A) -> B>(e: Expr<A>, mut f: F) -> Expr<B> {
         Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
         Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
         Expr::LiteralInt(x) => Expr::LiteralInt(x),
+        Expr::DatabaseRef(x) => Expr::DatabaseRef(x),
     }
 }
 
-fn traverse<A, B, E, F: FnMut(&A) -> Result<B, E>>(e: &Expr<A>, mut f: F) -> Result<Expr<B>, E> {
+fn traverse_into<A, B, E, F: FnMut(A) -> Result<B, E>>(e: Expr<A>, mut f: F) -> Result<Expr<B>, E> {
     Ok(match e {
         Expr::Add(a, b) => Expr::Add(f(a)?, f(b)?),
         Expr::Sub(a, b) => Expr::Sub(f(a)?, f(b)?),
         Expr::Mul(a, b) => Expr::Mul(f(a)?, f(b)?),
-        Expr::LiteralInt(x) => Expr::LiteralInt(*x),
+        Expr::LiteralInt(x) => Expr::LiteralInt(x),
+        Expr::DatabaseRef(x) => Expr::DatabaseRef(x),
     })
 }
 
@@ -131,7 +195,6 @@ fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Graph<Expr<EdgeIdx>, EdgeIdx, 
 
         nodes_to_create.push((node_idx, node));
     }
-
 
     // assume topo ordering, start with leaf nodes (at end) and insert backwards.
     // this works b/c definitionally, nodes precede their children because they
@@ -170,7 +233,45 @@ fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Graph<Expr<EdgeIdx>, EdgeIdx, 
 
 // NOTE: assumes that there is one node that is the 'head' node, which will always be at the beginning of a topo sort
 // NOTE: can work with graph subsets later, with specified head nodes and etc
-fn cata<A, F: Fn(Expr<&A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, alg: F) -> A {
+fn cata<A, F: FnMut(Expr<&A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, mut alg: F) -> A {
+    let topo_order = toposort(&g, None).expect("graph should not have cycles");
+
+    let head_node = topo_order[0]; // throws error if empty graph, TODO/FIXME (maybe?)
+
+    let mut results: HashMap<NodeIndex, A> = HashMap::with_capacity(topo_order.len());
+
+    for idx in topo_order.into_iter().rev() {
+        let alg_res = {
+            let node = g.node_weight(idx).unwrap();
+            let edges = g.edges(idx);
+            // NOTE I think that the second node in the edgeref is ALWAYS what I want,
+            // if not or if nondeterministic order can compare both to current idx and take one that !=
+            let mut edge_map: HashMap<EdgeIdx, NodeIndex> =
+                edges.map(|e| (*e.weight(), e.node[1])).collect();
+
+            let node =
+                traverse_into(*node, |x| edge_map.remove(&x).ok_or("ref not in edge map")).unwrap();
+            // cannot remove result from map (to acquire ownership) because doing so limits us to trees and would cause failures on DAGs
+            let node =
+                traverse_into(node, |x| results.get(&x).ok_or("node not in result map")).unwrap();
+            alg(node)
+        };
+        results.insert(idx, alg_res);
+    }
+
+    results.remove(&head_node).unwrap()
+}
+
+async fn cata_async<
+    'a,
+    A: 'a,
+    E,
+    Fut: Future<Output = Result<A, E>> + 'a,
+    F: Fn(Expr<&'_ A>) -> Fut,
+>(
+    g: &'a Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
+    alg: F,
+) -> Result<A, E> {
     let topo_order = toposort(&g, None).unwrap();
 
     let head_node = topo_order[0]; // throws error if empty graph, TODO/FIXME
@@ -183,17 +284,20 @@ fn cata<A, F: Fn(Expr<&A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, alg
             let edges = g.edges(idx);
             // NOTE I think that the second node in the edgeref is ALWAYS what I want,
             // if not or if nondeterministic order can compare both to current idx and take one that !=
-            let edge_map: HashMap<EdgeIdx, NodeIndex> =
+            let mut edge_map: HashMap<EdgeIdx, NodeIndex> =
                 edges.map(|e| (*e.weight(), e.node[1])).collect();
 
-            let node = traverse(&node, |x| edge_map.get(x).ok_or("ref not in edge map")).unwrap();
-            let node = traverse(&node, |x| results.get(x).ok_or("node not in result map")).unwrap();
-            alg(node)
+            let node =
+                traverse_into(*node, |x| edge_map.remove(&x).ok_or("ref not in edge map")).unwrap();
+            // cannot remove result from map (to acquire ownership) because doing so limits us to trees and would cause failures on DAGs
+            let node =
+                traverse_into(node, |x| results.get(&x).ok_or("node not in result map")).unwrap();
+            alg(node).await?
         };
         results.insert(idx, alg_res);
     }
 
-    results.remove(&head_node).unwrap()
+    Ok(results.remove(&head_node).unwrap())
 }
 
 // how would I express an expr graph in petgraph?
@@ -203,16 +307,26 @@ fn cata<A, F: Fn(Expr<&A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, alg
 // yes: the expr is the node, each sub-expr is an outgoing edge. can't rely on edge ordering, so just throw some usize's at it
 //      there won't be more
 
-
 // generate a bunch of expression trees and evaluate them
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10000))]
     #[test]
-    fn evals_correctly(expr in arb_expr()) {
+    fn evals_correctly((expr, db_state) in arb_expr()) {
         let expr = Box::new(expr);
-        let simple = naive_eval(expr.clone());
-        let complex = eval(from_ast(expr.clone()));
+        let simple = naive_eval(&db_state, expr.clone());
+        let complex = eval(&db_state, from_ast(expr.clone()));
 
         assert_eq!(simple, complex);
     }
+
+    // #![proptest_config(ProptestConfig::with_cases(500))]
+    // #[test]
+    // fn evals_correctly_postgres(expr in arb_expr()) {
+    //     // TODO/FIMXE: mb don't bring a database up for each test lol
+    //     let expr = Box::new(expr);
+    //     let db_state = HashMap::new();
+    //     let complex = eval(&db_state, from_ast(expr.clone()));
+
+    //     assert_eq!(simple, complex);
+    // }
 }

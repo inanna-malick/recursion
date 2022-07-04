@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use petgraph_schemes::*;
 
 fn main() {
@@ -13,7 +15,7 @@ fn main() {
 
     let expr_graph = from_ast(test);
 
-    let evaluated = eval(expr_graph);
+    let evaluated = eval(&HashMap::new(), expr_graph);
 
     println!("res: {:?}", evaluated);
 
