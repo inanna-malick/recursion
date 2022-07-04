@@ -55,19 +55,47 @@ type EvalError = String;
 //     }
 // }
 
-// async fn cata_async_2<
-//     'a,
-//     A: Send + Sync + 'a,
-//     E: Send + 'a,
-//     F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
-// >(
-//     g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
-//     alg: F,
-// ) -> Result<A, E> {
-//     let execution_graph = cata(g, move |e| cata_async_helper(e, alg));
+impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
+    async fn try_join_expr(self) -> Result<Expr<A>, E> {
+        match self {
+            Expr::Add(a, b) => {
+                // TODO: join with early termination on Err
+                let (a, b) = future::try_join(a, b).await?;
+                Ok(Expr::Add(a, b))
+            }
+            Expr::Sub(a, b) => {
+                // TODO: try_join with early termination on Err
+                let (a, b) = future::try_join(a, b).await?;
+                Ok(Expr::Sub(a, b))
+            }
 
-//     execution_graph.await
-// }
+            Expr::Mul(a, b) => {
+                // TODO: try_join with early termination on Err
+                let (a, b) = future::try_join(a, b).await?;
+                Ok(Expr::Mul(a, b))
+            }
+
+            Expr::LiteralInt(x) => Ok(Expr::LiteralInt(x)),
+            Expr::DatabaseRef(key) => Ok(Expr::DatabaseRef(key)),
+        }
+    }
+}
+// users of the library will need to implement this
+
+// HAHA HOLY SHIT THIS RULES IT WORKS IT WORKS IT WORKS, GET A POSTGRES TEST GOING BECAUSE THIS RULES
+async fn cata_async_2<
+    'a,
+    A: Send + Sync + 'a,
+    E: Send + 'a,
+    F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
+>(
+    g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
+    alg: F,
+) -> Result<A, E> {
+    let execution_graph = cata(g, |e| cata_async_helper(e, |x| alg(x)));
+
+    execution_graph.await
+}
 
 // given an async fun, build an execution graph from cata async
 fn cata_async_helper<
@@ -80,36 +108,8 @@ fn cata_async_helper<
     f: F,
 ) -> BoxFuture<'a, Result<A, E>> {
     async move {
-        match e {
-            Expr::Add(a, b) => {
-                // TODO: join with early termination on Err
-                let (a, b) = future::try_join(a, b).await?;
-                let res = f(Expr::Add(a, b)).await?;
-                Ok(res)
-            }
-            Expr::Sub(a, b) => {
-                // TODO: try_join with early termination on Err
-                let (a, b) = future::try_join(a, b).await?;
-                let res = f(Expr::Sub(a, b)).await?;
-                Ok(res)
-            }
-
-            Expr::Mul(a, b) => {
-                // TODO: try_join with early termination on Err
-                let (a, b) = future::try_join(a, b).await?;
-                let res = f(Expr::Mul(a, b)).await?;
-                Ok(res)
-            }
-
-            Expr::LiteralInt(x) => {
-                let res = f(Expr::LiteralInt(x)).await?;
-                Ok(res)
-            }
-            Expr::DatabaseRef(key) => {
-                let res = f(Expr::DatabaseRef(key)).await?;
-                Ok(res)
-            }
-        }
+        let e = e.try_join_expr().await?;
+        f(e).await
     }
     .boxed()
 }
@@ -160,7 +160,7 @@ pub async fn eval_postgres(
     db: &DB,
     g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
 ) -> Result<i64, EvalError> {
-    let f = cata_async(&g, |node| match node {
+    let f = cata_async_2(g, |node| match node {
         Expr::Add(a, b) => future::ok(a + b).boxed(),
         Expr::Sub(a, b) => future::ok(a - b).boxed(),
         Expr::Mul(a, b) => future::ok(a * b).boxed(),
