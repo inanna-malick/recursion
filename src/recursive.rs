@@ -1,30 +1,10 @@
-pub mod db;
-pub mod recursive;
-pub mod recursive_naive;
-
 use crate::db::DBKey;
 use crate::db::DB;
-use crate::recursive_naive::*;
 use futures::future;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-
-#[cfg(test)]
-use proptest::prelude::*;
-
-
-// or, IRL - parsed TOML or string or etc
-pub fn from_ast(ast: Box<ExprAST>) -> RecursiveExpr {
-    RecursiveExpr::ana(ast, |x| match *x {
-        ExprAST::Add(a, b) => Expr::Add(a, b),
-        ExprAST::Sub(a, b) => Expr::Sub(a, b),
-        ExprAST::Mul(a, b) => Expr::Mul(a, b),
-        ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
-        ExprAST::DatabaseRef(x) => Expr::DatabaseRef(x),
-    })
-}
 
 // wow, this is surprisingly easy - can add type checking to make it really pop!
 pub fn eval(db: &HashMap<DBKey, i64>, g: RecursiveExpr) -> i64 {
@@ -106,7 +86,7 @@ pub struct RecursiveExpr {
 }
 
 impl RecursiveExpr {
-    fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
+    pub fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
 
@@ -127,7 +107,7 @@ impl RecursiveExpr {
         Self { elems }
     }
 
-    fn cata<A, F: FnMut(Expr<A>) -> A>(self, mut alg: F) -> A {
+    pub fn cata<A, F: FnMut(Expr<A>) -> A>(self, mut alg: F) -> A {
         let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
 
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
@@ -146,7 +126,7 @@ impl RecursiveExpr {
     }
 
     // HAHA HOLY SHIT THIS RULES IT WORKS IT WORKS IT WORKS, GET A POSTGRES TEST GOING BECAUSE THIS RULES
-    async fn cata_async<
+    pub async fn cata_async<
         'a,
         A: Send + Sync + 'a,
         E: Send + 'a,
@@ -176,30 +156,4 @@ fn cata_async_helper<
         f(e).await
     }
     .boxed()
-}
-
-// generate a bunch of expression trees and evaluate them
-// NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)). 
-#[cfg(test)]
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(10000))]
-    #[test]
-    fn evals_correctly((expr, db_state) in arb_expr()) {
-        let expr = Box::new(expr);
-        let simple = naive_eval(&db_state, expr.clone());
-        let complex = eval(&db_state, from_ast(expr.clone()));
-
-        assert_eq!(simple, complex);
-    }
-
-    // #![proptest_config(ProptestConfig::with_cases(500))]
-    // #[test]
-    // fn evals_correctly_postgres(expr in arb_expr()) {
-    //     // TODO/FIMXE: mb don't bring a database up for each test lol
-    //     let expr = Box::new(expr);
-    //     let db_state = HashMap::new();
-    //     let complex = eval(&db_state, from_ast(expr.clone()));
-
-    //     assert_eq!(simple, complex);
-    // }
 }
