@@ -320,12 +320,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fixedbitset"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "279fb028e20b3c4c320317955b77c5e0c9701f05a1d309905d6fc702cdc5053e"
-
-[[package]]
 name = "flate2"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -964,19 +958,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 
 [[package]]
-name = "petgraph"
-version = "0.6.2"
-dependencies = [
- "fixedbitset",
- "indexmap",
-]
-
-[[package]]
 name = "petgraph-schemes"
 version = "0.1.0"
 dependencies = [
  "futures",
- "petgraph",
  "pg-embed",
  "proptest",
  "tempdir",

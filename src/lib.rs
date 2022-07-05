@@ -5,17 +5,15 @@ use crate::db::DB;
 use futures::future;
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use petgraph::{algo::toposort, graph::NodeIndex, Directed, Graph};
 use std::collections::HashMap;
-use std::future::Future;
 
 // TODO/FIXME: test only
 // Bring the macros and other important things into scope.
 use proptest::prelude::*;
 
 // or, IRL - parsed TOML or string or etc
-pub fn from_ast(ast: Box<ExprAST>) -> Graph<Expr<EdgeIdx>, EdgeIdx, Directed> {
-    ana(ast, |x| match *x {
+pub fn from_ast(ast: Box<ExprAST>) -> RecursiveExpr {
+    RecursiveExpr::ana(ast, |x| match *x {
         ExprAST::Add(a, b) => Expr::Add(a, b),
         ExprAST::Sub(a, b) => Expr::Sub(a, b),
         ExprAST::Mul(a, b) => Expr::Mul(a, b),
@@ -25,8 +23,8 @@ pub fn from_ast(ast: Box<ExprAST>) -> Graph<Expr<EdgeIdx>, EdgeIdx, Directed> {
 }
 
 // wow, this is surprisingly easy - can add type checking to make it really pop!
-pub fn eval(db: &HashMap<DBKey, i64>, g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>) -> i64 {
-    cata(g, |node| match node {
+pub fn eval(db: &HashMap<DBKey, i64>, g: RecursiveExpr) -> i64 {
+    g.cata(|node| match node {
         Expr::Add(a, b) => a + b,
         Expr::Sub(a, b) => a - b,
         Expr::Mul(a, b) => a * b,
@@ -35,132 +33,9 @@ pub fn eval(db: &HashMap<DBKey, i64>, g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>
     })
 }
 
-type EvalError = String;
-
-// NOTE: may be sufficiently non-idiomatic to want to avoid
-// async fn async_alg<A, B>(e: Expr<Box<dyn Future<Output = A>>>, f: Fn(&Expr<A>) -> B) -> B {
-//     match expr {
-//         Expr::Add(a, b) => {
-//             // TODO: join with early termination on Err
-//             let (a,b) = future::join(a, b).await;
-//             future::ok(f(a + b).boxed()
-//         },
-//         Expr::Sub(a, b) => future::ok(a - b).boxed(),
-//         Expr::Mul(a, b) => future::ok(a * b).boxed(),
-//         Expr::LiteralInt(x) => future::ok(x).boxed(),
-//         Expr::DatabaseRef(key) => {
-//             let f = async move { db.get(key).await.map_err(|x| x.to_string()) };
-//             f.boxed()
-//         }
-//     }
-// }
-
-impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
-    async fn try_join_expr(self) -> Result<Expr<A>, E> {
-        match self {
-            Expr::Add(a, b) => {
-                // TODO: join with early termination on Err
-                let (a, b) = future::try_join(a, b).await?;
-                Ok(Expr::Add(a, b))
-            }
-            Expr::Sub(a, b) => {
-                // TODO: try_join with early termination on Err
-                let (a, b) = future::try_join(a, b).await?;
-                Ok(Expr::Sub(a, b))
-            }
-
-            Expr::Mul(a, b) => {
-                // TODO: try_join with early termination on Err
-                let (a, b) = future::try_join(a, b).await?;
-                Ok(Expr::Mul(a, b))
-            }
-
-            Expr::LiteralInt(x) => Ok(Expr::LiteralInt(x)),
-            Expr::DatabaseRef(key) => Ok(Expr::DatabaseRef(key)),
-        }
-    }
-}
-// users of the library will need to implement this
-
-// HAHA HOLY SHIT THIS RULES IT WORKS IT WORKS IT WORKS, GET A POSTGRES TEST GOING BECAUSE THIS RULES
-async fn cata_async_2<
-    'a,
-    A: Send + Sync + 'a,
-    E: Send + 'a,
-    F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
->(
-    g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
-    alg: F,
-) -> Result<A, E> {
-    let execution_graph = cata(g, |e| cata_async_helper(e, |x| alg(x)));
-
-    execution_graph.await
-}
-
-// given an async fun, build an execution graph from cata async
-fn cata_async_helper<
-    'a,
-    A: Send + 'a,
-    E: 'a,
-    F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
->(
-    e: Expr<BoxFuture<'a, Result<A, E>>>,
-    f: F,
-) -> BoxFuture<'a, Result<A, E>> {
-    async move {
-        let e = e.try_join_expr().await?;
-        f(e).await
-    }
-    .boxed()
-}
-
-// more viable, but also probably non-idiomatic - just have special-cased async
-fn postgres_alg<'a>(db: &'a DB, e: Expr<BoxFuture<'a, i64>>) -> BoxFuture<'a, Result<i64, String>> {
-    async move {
-        match e {
-            Expr::Add(a, b) => {
-                // TODO: join with early termination on Err
-                let (a, b) = future::join(a, b).await;
-                Ok(a + b)
-            }
-            Expr::Sub(a, b) => {
-                // TODO: join with early termination on Err
-                let (a, b) = future::join(a, b).await;
-                Ok(a - b)
-            }
-
-            Expr::Mul(a, b) => {
-                // TODO: join with early termination on Err
-                let (a, b) = future::join(a, b).await;
-                Ok(a * b)
-            }
-
-            Expr::LiteralInt(x) => Ok(x),
-            Expr::DatabaseRef(key) => db.get(key).await.map_err(|x| x.to_string()),
-        }
-    }
-    .boxed()
-}
-
-// pub async fn eval_postgres_2(
-//     db: &DB,
-//     g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
-// ) -> Result<i64, EvalError> {
-//     let f = cata(&g, |node| {
-//             let f = async move {  };
-//             f.boxed()
-//     }
-//     );
-
-//     f.await
-// }
-
 // forget about type checking, too many match statements. check this out instead:
-pub async fn eval_postgres(
-    db: &DB,
-    g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
-) -> Result<i64, EvalError> {
-    let f = cata_async_2(g, |node| match node {
+pub async fn eval_postgres(db: &DB, g: RecursiveExpr) -> Result<i64, EvalError> {
+    let f = g.cata_async(|node| match node {
         Expr::Add(a, b) => future::ok(a + b).boxed(),
         Expr::Sub(a, b) => future::ok(a - b).boxed(),
         Expr::Mul(a, b) => future::ok(a * b).boxed(),
@@ -172,6 +47,31 @@ pub async fn eval_postgres(
     });
 
     f.await
+}
+
+type EvalError = String;
+
+impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
+    async fn try_join_expr(self) -> Result<Expr<A>, E> {
+        match self {
+            Expr::Add(a, b) => {
+                let (a, b) = future::try_join(a, b).await?;
+                Ok(Expr::Add(a, b))
+            }
+            Expr::Sub(a, b) => {
+                let (a, b) = future::try_join(a, b).await?;
+                Ok(Expr::Sub(a, b))
+            }
+
+            Expr::Mul(a, b) => {
+                let (a, b) = future::try_join(a, b).await?;
+                Ok(Expr::Mul(a, b))
+            }
+
+            Expr::LiteralInt(x) => Ok(Expr::LiteralInt(x)),
+            Expr::DatabaseRef(key) => Ok(Expr::DatabaseRef(key)),
+        }
+    }
 }
 
 // NOTE: using this instead of a parsed JSON AST or some other similar serialized repr for conciseness
@@ -190,7 +90,7 @@ impl ExprAST {
     fn keys(&self) -> Vec<DBKey> {
         let mut keys = Vec::new();
         // TODO: totally unneeded clone here, fixme
-        cata(from_ast(Box::new(self.clone())), |expr| match expr {
+        from_ast(Box::new(self.clone())).cata(|expr| match expr {
             Expr::DatabaseRef(k) => keys.push(k),
             _ => {}
         });
@@ -248,8 +148,6 @@ fn arb_expr() -> impl Strategy<Value = (ExprAST, HashMap<DBKey, i64>)> {
     })
 }
 
-type EdgeIdx = usize;
-
 #[derive(Debug, Clone, Copy)]
 pub enum Expr<A> {
     Add(A, A),
@@ -257,17 +155,6 @@ pub enum Expr<A> {
     Mul(A, A),
     LiteralInt(i64),
     DatabaseRef(DBKey),
-}
-
-fn expr_leaves<A>(e: &Expr<A>) -> impl Iterator<Item = &A> {
-    let slice = match e {
-        Expr::Add(a, b) => vec![a, b],
-        Expr::Sub(a, b) => vec![a, b],
-        Expr::Mul(a, b) => vec![a, b],
-        Expr::LiteralInt(_) | Expr::DatabaseRef(_) => Vec::with_capacity(0),
-    };
-
-    slice.into_iter()
 }
 
 fn fmap_into<A, B, F: FnMut(A) -> B>(e: Expr<A>, mut f: F) -> Expr<B> {
@@ -290,142 +177,95 @@ fn traverse_into<A, B, E, F: FnMut(A) -> Result<B, E>>(e: Expr<A>, mut f: F) -> 
     })
 }
 
-// PLAN: implement this then run some tests
-fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Graph<Expr<EdgeIdx>, EdgeIdx, Directed> {
-    let mut frontier: Vec<(usize, A)> = Vec::new();
-    frontier.push((0, a));
-
-    // we don't have graph indices yet so we create an internal index via monotonic increase of usize
-    // start with '1' because the frontier already has 1 value
-    let mut next_idx: usize = 1;
-
-    // collect nodes to create, neccessary because each node are created before their children are expanded from seed values
-    let mut nodes_to_create: Vec<(usize, Expr<usize>)> = Vec::new();
-
-    while let Some((node_idx, seed)) = frontier.pop() {
-        let node = coalg(seed);
-
-        let node: Expr<usize> = fmap_into(node, |aa| {
-            let idx = next_idx;
-            next_idx += 1;
-            frontier.push((idx, aa));
-            idx
-        });
-
-        nodes_to_create.push((node_idx, node));
-    }
-
-    // assume topo ordering, start with leaf nodes (at end) and insert backwards.
-    // this works b/c definitionally, nodes precede their children because they
-    // must have existed in nodes before adding child seeds to frontier
-    // NOTE: this might fail if we end up in a DAG (instead of tree) state? need to think about this <- FIXME?
-    // NOTE: nvm lol this fn can't generate DAGs, might have duplicates b/c no Eq constraint on 'a', will
-    //       just generate duplicate branches w/ no structural sharing, it's fine. that's not even required.
-    let mut idx_to_graph_idx = HashMap::new();
-
-    let mut graph = Graph::new();
-
-    // boilerplate - build graph from nodes_to_create
-    for (idx, expr) in nodes_to_create.into_iter().rev() {
-        // collect edges to add before adding node
-        let mut edges_to_add: Vec<(NodeIndex, usize)> = Vec::new();
-        for edge in expr_leaves(&expr) {
-            // can just remove mappings b/c each is only used once (no structural sharing yet)
-            let to_graph_idx = idx_to_graph_idx
-                .remove(edge)
-                .ok_or("broken link during 'ana'")
-                .unwrap();
-
-            edges_to_add.push((to_graph_idx, *edge))
-        }
-
-        let graph_idx = graph.add_node(expr);
-        for (to, weight) in edges_to_add.into_iter() {
-            graph.add_edge(graph_idx, to, weight);
-        }
-
-        idx_to_graph_idx.insert(idx, graph_idx);
-    }
-
-    graph
+pub struct RecursiveExpr {
+    elems: HashMap<usize, Expr<usize>>,
+    topo_order: Vec<usize>, // guaranteed at least one element by construction
 }
 
-// NOTE: assumes that there is one node that is the 'head' node, which will always be at the beginning of a topo sort
-// NOTE: can work with graph subsets later, with specified head nodes and etc
-// NOTE NOTE NOTE: does not work with grpahs, b/c that makes ownership cleaner
-fn cata<A, F: FnMut(Expr<A>) -> A>(g: Graph<Expr<EdgeIdx>, EdgeIdx, Directed>, mut alg: F) -> A {
-    let topo_order = toposort(&g, None).expect("graph should not have cycles");
+impl RecursiveExpr {
+    fn cata<A, F: FnMut(Expr<A>) -> A>(mut self, mut alg: F) -> A {
+        let head_node = self.topo_order[0]; // throws error if empty graph, TODO/FIXME (maybe?)
 
-    let head_node = topo_order[0]; // throws error if empty graph, TODO/FIXME (maybe?)
+        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
 
-    let mut results: HashMap<NodeIndex, A> = HashMap::with_capacity(topo_order.len());
+        for idx in self.topo_order.into_iter().rev() {
+            let alg_res = {
+                // each node is only referenced once so just remove it to avoid cloning owned data
+                let node = self.elems.remove(&idx).unwrap();
+                let node =
+                    traverse_into(node, |x| results.remove(&x).ok_or("node not in result map"))
+                        .unwrap();
+                alg(node)
+            };
+            results.insert(idx, alg_res);
+        }
 
-    for idx in topo_order.into_iter().rev() {
-        let alg_res = {
-            let node = g.node_weight(idx).unwrap();
-            let edges = g.edges(idx);
-            // NOTE I think that the second node in the edgeref is ALWAYS what I want,
-            // if not or if nondeterministic order can compare both to current idx and take one that !=
-            let mut edge_map: HashMap<EdgeIdx, NodeIndex> =
-                edges.map(|e| (*e.weight(), e.node[1])).collect();
-
-            let node =
-                traverse_into(*node, |x| edge_map.remove(&x).ok_or("ref not in edge map")).unwrap();
-            // cannot remove result from map (to acquire ownership) because doing so limits us to trees and would cause failures on DAGs
-            let node = traverse_into(node, |x| results.remove(&x).ok_or("node not in result map"))
-                .unwrap();
-            alg(node)
-        };
-        results.insert(idx, alg_res);
+        results.remove(&head_node).unwrap()
     }
 
-    results.remove(&head_node).unwrap()
+    // HAHA HOLY SHIT THIS RULES IT WORKS IT WORKS IT WORKS, GET A POSTGRES TEST GOING BECAUSE THIS RULES
+    async fn cata_async<
+        'a,
+        A: Send + Sync + 'a,
+        E: Send + 'a,
+        F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
+    >(
+        self,
+        alg: F,
+    ) -> Result<A, E> {
+        let execution_graph = self.cata(|e| cata_async_helper(e, |x| alg(x)));
+
+        execution_graph.await
+    }
+
+    fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
+        let mut frontier: Vec<(usize, A)> = vec![(0, a)];
+        let mut topo_order = vec![0];
+
+        // we don't have graph indices yet so we create an internal index via monotonic increase of usize
+        // start with '1' because the frontier already has 1 value
+        let mut next_idx: usize = 1;
+
+        // collect nodes to create, neccessary because each node are created before their children are expanded from seed values
+        let mut elems = HashMap::new();
+
+        while let Some((node_idx, seed)) = frontier.pop() {
+            let node = coalg(seed);
+
+            let node: Expr<usize> = fmap_into(node, |aa| {
+                let idx = next_idx;
+                next_idx += 1;
+                frontier.push((idx, aa));
+                topo_order.push(idx);
+                idx
+            });
+
+            elems.insert(node_idx, node);
+        }
+
+        // assume topo ordering, start with leaf nodes (at end) and insert backwards.
+        // this works b/c definitionally, nodes precede their children because they
+        // must have existed in nodes before adding child seeds to frontier
+        Self { elems, topo_order }
+    }
 }
 
-async fn cata_async<
+// given an async fun, build an execution graph from cata async
+fn cata_async_helper<
     'a,
-    A: 'a,
-    E,
-    Fut: Future<Output = Result<A, E>> + 'a,
-    F: Fn(Expr<&'_ A>) -> Fut,
+    A: Send + 'a,
+    E: 'a,
+    F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
 >(
-    g: &'a Graph<Expr<EdgeIdx>, EdgeIdx, Directed>,
-    alg: F,
-) -> Result<A, E> {
-    let topo_order = toposort(&g, None).unwrap();
-
-    let head_node = topo_order[0]; // throws error if empty graph, TODO/FIXME
-
-    let mut results: HashMap<NodeIndex, A> = HashMap::with_capacity(topo_order.len());
-
-    for idx in topo_order.into_iter().rev() {
-        let alg_res = {
-            let node = g.node_weight(idx).unwrap();
-            let edges = g.edges(idx);
-            // NOTE I think that the second node in the edgeref is ALWAYS what I want,
-            // if not or if nondeterministic order can compare both to current idx and take one that !=
-            let mut edge_map: HashMap<EdgeIdx, NodeIndex> =
-                edges.map(|e| (*e.weight(), e.node[1])).collect();
-
-            let node =
-                traverse_into(*node, |x| edge_map.remove(&x).ok_or("ref not in edge map")).unwrap();
-            // cannot remove result from map (to acquire ownership) because doing so limits us to trees and would cause failures on DAGs
-            let node =
-                traverse_into(node, |x| results.get(&x).ok_or("node not in result map")).unwrap();
-            alg(node).await?
-        };
-        results.insert(idx, alg_res);
+    e: Expr<BoxFuture<'a, Result<A, E>>>,
+    f: F,
+) -> BoxFuture<'a, Result<A, E>> {
+    async move {
+        let e = e.try_join_expr().await?;
+        f(e).await
     }
-
-    Ok(results.remove(&head_node).unwrap())
+    .boxed()
 }
-
-// how would I express an expr graph in petgraph?
-// idea: expressions along the edges and evaluated values in the nodes?
-//       problem - can't have A + B I think?
-// idea: full expr in the node and positional reference to edges - edge 1, 2, 3, etc. a bit janky, but works fine I guess
-// yes: the expr is the node, each sub-expr is an outgoing edge. can't rely on edge ordering, so just throw some usize's at it
-//      there won't be more
 
 // generate a bunch of expression trees and evaluate them
 proptest! {

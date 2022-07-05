@@ -7,8 +7,6 @@ edition = "2021"
 
 [dependencies]
 
-
-petgraph = { path = "../petgraph" }
 proptest = "1.0.0"
 
 futures = "0.3.21"
