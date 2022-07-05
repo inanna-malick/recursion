@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 
 
+// this is the core of what users provide
+
 #[derive(Debug, Clone, Copy)]
 pub enum Expr<A> {
     Add(A, A),
@@ -14,6 +16,8 @@ pub enum Expr<A> {
     LiteralInt(i64),
     DatabaseRef(DBKey),
 }
+
+// everything below here can (or should) be able to generate via proc macro - some is nontrivial
 
 impl<A> Expr<A> {
     pub fn fmap_into<B, F: FnMut(A) -> B>(self, mut f: F) -> Expr<B> {
@@ -49,6 +53,9 @@ impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
         }
     }
 }
+
+// everything below here can be generated pretty easily given the above
+
 pub struct RecursiveExpr {
     // nonempty, in topological-sorted order
     elems: Vec<Expr<usize>>,
@@ -65,9 +72,8 @@ impl RecursiveExpr {
 
             let node: Expr<usize> = node.fmap_into(|aa| {
                 frontier.push_back(aa);
-                // this is the sketchy bit, here
-                let idx = elems.len() + frontier.len();
-                idx
+                // this is the sketchy bit, here - idx of pointed-to element
+                elems.len() + frontier.len()
             });
 
             elems.push(node);
@@ -104,7 +110,10 @@ impl RecursiveExpr {
         self,
         alg: F,
     ) -> Result<A, E> {
-        let execution_graph = self.cata(|e| cata_async_helper(e, |x| alg(x)));
+        let execution_graph = self.cata( |e|  
+            // NOTE: want to directly pass in fn but can't because borrow checker - not sure how to do this, causes spurious clippy warning
+            cata_async_helper(e,  |x| alg(x))
+        );
 
         execution_graph.await
     }
