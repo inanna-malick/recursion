@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use petgraph_schemes::{*, recursive_naive::ExprAST};
+use petgraph_schemes::{recursive_naive::{ExprAST, from_ast}, *};
 
 fn main() {
     println!("Hello, world!");

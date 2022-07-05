@@ -1,42 +1,31 @@
 use crate::db::DBKey;
-use crate::db::DB;
 use futures::future;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-// wow, this is surprisingly easy - can add type checking to make it really pop!
-pub fn eval(db: &HashMap<DBKey, i64>, g: RecursiveExpr) -> i64 {
-    g.cata(|node| {
-        println!("eval: {:?}", node);
-        match node {
-            Expr::Add(a, b) => a + b,
-            Expr::Sub(a, b) => a - b,
-            Expr::Mul(a, b) => a * b,
-            Expr::LiteralInt(x) => x,
-            Expr::DatabaseRef(x) => *db.get(&x).expect("cata eval db lookup failed"),
-        }
-    })
+
+#[derive(Debug, Clone, Copy)]
+pub enum Expr<A> {
+    Add(A, A),
+    Sub(A, A),
+    Mul(A, A),
+    LiteralInt(i64),
+    DatabaseRef(DBKey),
 }
 
-// forget about type checking, too many match statements. check this out instead:
-pub async fn eval_postgres(db: &DB, g: RecursiveExpr) -> Result<i64, EvalError> {
-    let f = g.cata_async(|node| match node {
-        Expr::Add(a, b) => future::ok(a + b).boxed(),
-        Expr::Sub(a, b) => future::ok(a - b).boxed(),
-        Expr::Mul(a, b) => future::ok(a * b).boxed(),
-        Expr::LiteralInt(x) => future::ok(x).boxed(),
-        Expr::DatabaseRef(key) => {
-            let f = async move { db.get(key).await.map_err(|x| x.to_string()) };
-            f.boxed()
-        }
-    });
-
-    f.await
+impl<A> Expr<A> {
+    pub fn fmap_into<B, F: FnMut(A) -> B>(self, mut f: F) -> Expr<B> {
+    match self {
+        Expr::Add(a, b) => Expr::Add(f(a), f(b)),
+        Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
+        Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
+        Expr::LiteralInt(x) => Expr::LiteralInt(x),
+        Expr::DatabaseRef(x) => Expr::DatabaseRef(x),
+    }
 }
-
-type EvalError = String;
+}
 
 impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
     async fn try_join_expr(self) -> Result<Expr<A>, E> {
@@ -60,26 +49,6 @@ impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy)]
-pub enum Expr<A> {
-    Add(A, A),
-    Sub(A, A),
-    Mul(A, A),
-    LiteralInt(i64),
-    DatabaseRef(DBKey),
-}
-
-fn fmap_into<A, B, F: FnMut(A) -> B>(e: Expr<A>, mut f: F) -> Expr<B> {
-    match e {
-        Expr::Add(a, b) => Expr::Add(f(a), f(b)),
-        Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
-        Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
-        Expr::LiteralInt(x) => Expr::LiteralInt(x),
-        Expr::DatabaseRef(x) => Expr::DatabaseRef(x),
-    }
-}
-
 pub struct RecursiveExpr {
     // nonempty, in topological-sorted order
     elems: Vec<Expr<usize>>,
@@ -94,7 +63,7 @@ impl RecursiveExpr {
         while let Some(seed) = frontier.pop_front() {
             let node = coalg(seed);
 
-            let node: Expr<usize> = fmap_into(node, |aa| {
+            let node: Expr<usize> = node.fmap_into(|aa| {
                 frontier.push_back(aa);
                 // this is the sketchy bit, here
                 let idx = elems.len() + frontier.len();
@@ -113,7 +82,7 @@ impl RecursiveExpr {
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it to avoid cloning owned data
-                let node = fmap_into(node, |x| {
+                let node = node.fmap_into( |x| {
                     results.remove(&x).expect("node not in result map")
                 });
                 alg(node)
