@@ -8,7 +8,6 @@ use crate::recursive::Expr;
 use futures::future;
 use futures::FutureExt;
 use recursive::Recursive;
-use recursive::RecursiveExpr;
 use recursive::RecursiveExpr2;
 use std::collections::HashMap;
 

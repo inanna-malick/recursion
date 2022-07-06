@@ -28,6 +28,21 @@ impl<A> Expr<A> {
     }
 }
 
+trait Functor<B> {
+    type Unwrapped;
+    type To;
+    fn fmap_into_2<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To;
+}
+
+impl<A, B> Functor<B> for Expr<A> {
+    type To = Expr<B>;
+    type Unwrapped = A;
+
+    fn fmap_into_2<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To {
+        self.fmap_into(f)
+    }
+
+}
 
 trait MapToUsize {
     type Unwrapped;
@@ -95,11 +110,6 @@ async fn try_join_helper<A, E>(e: Expr<BoxFuture<'_, Result<A, E>>>) -> Result<E
     }
 }
 
-pub trait Recursive<A> {
-    type AlgFrom;
-    type AlgTo;
-    fn cata<F: FnMut(Self::AlgFrom) -> Self::AlgTo>(self, alg: F) -> Self::AlgTo;
-}
 
 pub struct RecursiveStruct<F> {
     // nonempty, in topological-sorted order
@@ -113,8 +123,9 @@ pub trait CoRecursive<A, O> {
     fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self;
 }
 
-impl<A, O> CoRecursive<A, O> for RecursiveStruct<Expr<usize>> {
-    fn ana<F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
+// yo what the fuck how how how does this compile hahah is this fully generic recursion schemes in rust? lmao
+impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for RecursiveStruct<U> {
+    fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self {
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
 
@@ -122,7 +133,7 @@ impl<A, O> CoRecursive<A, O> for RecursiveStruct<Expr<usize>> {
         while let Some(seed) = frontier.pop_front() {
             let node = coalg(seed);
 
-            let node: Expr<usize> = node.fmap_into(|aa| {
+            let node = node.fmap_into_2(|aa| {
                 frontier.push_back(aa);
                 // this is the sketchy bit, here - idx of pointed-to element
                 elems.len() + frontier.len()
@@ -135,18 +146,20 @@ impl<A, O> CoRecursive<A, O> for RecursiveStruct<Expr<usize>> {
     }
 }
 
-impl<A> Recursive<A> for RecursiveStruct<Expr<usize>> {
-    type AlgFrom = Expr<A>;
 
-    type AlgTo = A;
+pub trait Recursive<A, O> {
+    fn cata<F: FnMut(O) -> A>(self, alg: F) -> A;
+}
 
-    fn cata<F: FnMut(Self::AlgFrom) -> Self::AlgTo>(self, mut alg: F) -> Self::AlgTo {
+impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for RecursiveStruct<U> {
+
+    fn cata<F: FnMut(O) -> A>(self, mut alg: F) -> A {
         let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
 
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it to avoid cloning owned data
-                let node = node.fmap_into(|x| results.remove(&x).expect("node not in result map"));
+                let node = node.fmap_into_2( |x| results.remove(&x).expect("node not in result map"));
                 alg(node)
             };
             results.insert(idx, alg_res);
@@ -159,79 +172,79 @@ impl<A> Recursive<A> for RecursiveStruct<Expr<usize>> {
 
 // everything below here can be generated pretty easily given the above
 
-pub struct RecursiveExpr {
-    // nonempty, in topological-sorted order
-    elems: Vec<Expr<usize>>,
-}
+// pub struct RecursiveExpr {
+//     // nonempty, in topological-sorted order
+//     elems: Vec<Expr<usize>>,
+// }
 
-impl RecursiveExpr {
-    pub fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
-        let mut frontier = VecDeque::from([a]);
-        let mut elems = vec![];
+// impl RecursiveExpr {
+//     pub fn ana<A, F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
+//         let mut frontier = VecDeque::from([a]);
+//         let mut elems = vec![];
 
-        // unfold to build a vec of elems while preserving topo order
-        while let Some(seed) = frontier.pop_front() {
-            let node = coalg(seed);
+//         // unfold to build a vec of elems while preserving topo order
+//         while let Some(seed) = frontier.pop_front() {
+//             let node = coalg(seed);
 
-            let node: Expr<usize> = node.fmap_into(|aa| {
-                frontier.push_back(aa);
-                // this is the sketchy bit, here - idx of pointed-to element
-                elems.len() + frontier.len()
-            });
+//             let node: Expr<usize> = node.fmap_into(|aa| {
+//                 frontier.push_back(aa);
+//                 // this is the sketchy bit, here - idx of pointed-to element
+//                 elems.len() + frontier.len()
+//             });
 
-            elems.push(node);
-        }
+//             elems.push(node);
+//         }
 
-        Self { elems }
-    }
+//         Self { elems }
+//     }
 
-    pub fn cata<A, F: FnMut(Expr<A>) -> A>(self, mut alg: F) -> A {
-        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
+//     pub fn cata<A, F: FnMut(Expr<A>) -> A>(self, mut alg: F) -> A {
+//         let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
 
-        for (idx, node) in self.elems.into_iter().enumerate().rev() {
-            let alg_res = {
-                // each node is only referenced once so just remove it to avoid cloning owned data
-                let node = node.fmap_into(|x| results.remove(&x).expect("node not in result map"));
-                alg(node)
-            };
-            results.insert(idx, alg_res);
-        }
+//         for (idx, node) in self.elems.into_iter().enumerate().rev() {
+//             let alg_res = {
+//                 // each node is only referenced once so just remove it to avoid cloning owned data
+//                 let node = node.fmap_into(|x| results.remove(&x).expect("node not in result map"));
+//                 alg(node)
+//             };
+//             results.insert(idx, alg_res);
+//         }
 
-        // assumes nonempty recursive structure
-        results.remove(&0).unwrap()
-    }
+//         // assumes nonempty recursive structure
+//         results.remove(&0).unwrap()
+//     }
 
-    // HAHA HOLY SHIT THIS RULES IT WORKS IT WORKS IT WORKS, GET A POSTGRES TEST GOING BECAUSE THIS RULES
-    pub async fn cata_async<
-        'a,
-        A: Send + Sync + 'a,
-        E: Send + 'a,
-        F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
-    >(
-        self,
-        alg: F,
-    ) -> Result<A, E> {
-        let execution_graph = self.cata(|e|
-            // NOTE: want to directly pass in fn but can't because borrow checker - not sure how to do this, causes spurious clippy warning
-            cata_async_helper(e,  |x| alg(x)));
+//     // HAHA HOLY SHIT THIS RULES IT WORKS IT WORKS IT WORKS, GET A POSTGRES TEST GOING BECAUSE THIS RULES
+//     pub async fn cata_async<
+//         'a,
+//         A: Send + Sync + 'a,
+//         E: Send + 'a,
+//         F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
+//     >(
+//         self,
+//         alg: F,
+//     ) -> Result<A, E> {
+//         let execution_graph = self.cata(|e|
+//             // NOTE: want to directly pass in fn but can't because borrow checker - not sure how to do this, causes spurious clippy warning
+//             cata_async_helper(e,  |x| alg(x)));
 
-        execution_graph.await
-    }
-}
+//         execution_graph.await
+//     }
+// }
 
-// given an async fun, build an execution graph from cata async
-fn cata_async_helper<
-    'a,
-    A: Send + 'a,
-    E: 'a,
-    F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
->(
-    e: Expr<BoxFuture<'a, Result<A, E>>>,
-    f: F,
-) -> BoxFuture<'a, Result<A, E>> {
-    async move {
-        let e = e.try_join().await?;
-        f(e).await
-    }
-    .boxed()
-}
+// // given an async fun, build an execution graph from cata async
+// fn cata_async_helper<
+//     'a,
+//     A: Send + 'a,
+//     E: 'a,
+//     F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
+// >(
+//     e: Expr<BoxFuture<'a, Result<A, E>>>,
+//     f: F,
+// ) -> BoxFuture<'a, Result<A, E>> {
+//     async move {
+//         let e = e.try_join().await?;
+//         f(e).await
+//     }
+//     .boxed()
+// }
