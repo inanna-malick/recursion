@@ -95,13 +95,6 @@ async fn try_join_helper<A, E>(e: Expr<BoxFuture<'_, Result<A, E>>>) -> Result<E
     }
 }
 
-pub trait CoRecursive<A> {
-    type CoAlgFrom;
-    type CoAlgTo;
-
-    fn ana<F: Fn(Self::CoAlgFrom) -> Self::CoAlgTo>(a: Self::CoAlgFrom, coalg: F) -> Self;
-}
-
 pub trait Recursive<A> {
     type AlgFrom;
     type AlgTo;
@@ -115,12 +108,13 @@ pub struct RecursiveStruct<F> {
 
 pub type RecursiveExpr2 = RecursiveStruct<Expr<usize>>;
 
-impl<A> CoRecursive<A> for RecursiveStruct<Expr<usize>> {
-    type CoAlgFrom = A;
 
-    type CoAlgTo = Expr<A>;
+pub trait CoRecursive<A, O> {
+    fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self;
+}
 
-    fn ana<F: Fn(Self::CoAlgFrom) -> Self::CoAlgTo>(a: Self::CoAlgFrom, coalg: F) -> Self {
+impl<A> CoRecursive<A, Expr<A>> for RecursiveStruct<Expr<usize>> {
+    fn ana<F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
 

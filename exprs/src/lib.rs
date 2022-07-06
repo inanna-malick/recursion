@@ -20,7 +20,6 @@ use proptest::prelude::*;
 // wow, this is surprisingly easy - can add type checking to make it really pop!
 pub fn eval(db: &HashMap<DBKey, i64>, g: RecursiveExpr2) -> i64 {
     g.cata(|node| {
-        println!("eval: {:?}", node);
         match node {
             Expr::Add(a, b) => a + b,
             Expr::Sub(a, b) => a - b,
