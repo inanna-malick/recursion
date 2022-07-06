@@ -11,8 +11,5 @@ proptest = "1.0.0"
 
 futures = "0.3.21"
 
-tempdir = "0.3.7"
-
 tokio = "1.0"
-tokio-postgres = "0.7.6"
 pg-embed = "0.6.5"

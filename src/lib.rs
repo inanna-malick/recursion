@@ -29,23 +29,21 @@ pub fn eval(db: &HashMap<DBKey, i64>, g: RecursiveExpr) -> i64 {
     })
 }
 
-// forget about type checking, too many match statements. check this out instead:
-pub async fn eval_postgres(db: &DB, g: RecursiveExpr) -> Result<i64, EvalError> {
+// forget about type checking exprs, too many match statements. check this out instead:
+pub async fn eval_async(db: &DB, g: RecursiveExpr) -> Result<i64, String> {
     let f = g.cata_async(|node| match node {
         Expr::Add(a, b) => future::ok(a + b).boxed(),
         Expr::Sub(a, b) => future::ok(a - b).boxed(),
         Expr::Mul(a, b) => future::ok(a * b).boxed(),
         Expr::LiteralInt(x) => future::ok(x).boxed(),
         Expr::DatabaseRef(key) => {
-            let f = async move { db.get(key).await.map_err(|x| x.to_string()) };
+            let f = async move { db.get(&key).await.map_err(|x| x.to_string()) };
             f.boxed()
         }
     });
 
     f.await
 }
-
-type EvalError = String;
 
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
@@ -58,36 +56,10 @@ proptest! {
         let simple = naive_eval(&db_state, expr.clone());
         let complex = eval(&db_state, from_ast(expr.clone()));
 
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let async_complex = rt.block_on(eval_async(&DB::init(db_state), from_ast(expr.clone()))).unwrap();
+
         assert_eq!(simple, complex);
-    }
-}
-
-// generate a bunch of expression trees and evaluate them
-#[cfg(test)]
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(5))]
-    #[test]
-    fn expr_eval_pg((expr, db_state) in arb_expr()) {
-        use tokio::runtime::Runtime;
-
-        // Create the runtime
-        let rt  = Runtime::new().unwrap();
-
-        // TODO/FIMXE: mb don't bring a database up for each test lol this is trash
-        let expr = Box::new(expr);
-        let simple = naive_eval(&db_state, expr.clone());
-        let f = crate::db::run_embedded_db("test db", |conn_str| { 
-            DB::with_db(conn_str, |db| {
-                let expr = from_ast(expr.clone());
-                let db = db.clone();
-                let db_state = db_state.clone();
-                async move {
-                db.init(&db_state).await.unwrap();
-                eval_postgres(&db, expr).await
-        }} )
-        });
-        let pg = rt.block_on(f).unwrap().unwrap().unwrap(); // unwrap all the different typed errors from the embed/with db/etc stuff
-
-        assert_eq!(simple, pg);
+        assert_eq!(simple, async_complex);
     }
 }
