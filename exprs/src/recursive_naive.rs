@@ -17,8 +17,8 @@ pub enum ExprAST {
 }
 
 // or, IRL - parsed TOML or string or etc
-pub fn from_ast(ast: Box<ExprAST>) -> RecursiveExpr {
-    RecursiveExpr::ana(ast, |x| match *x {
+pub fn from_ast(ast: Box<ExprAST>) -> RecursiveExpr2 {
+    RecursiveExpr2::ana(ast, |x| match *x {
         ExprAST::Add(a, b) => Expr::Add(a, b),
         ExprAST::Sub(a, b) => Expr::Sub(a, b),
         ExprAST::Mul(a, b) => Expr::Mul(a, b),

@@ -16,8 +16,6 @@ pub enum Expr<A> {
     DatabaseRef(DBKey),
 }
 
-// everything below here can (or should) be able to generate via proc macro - some is nontrivial
-
 impl<A> Expr<A> {
     pub fn fmap_into<B, F: FnMut(A) -> B>(self, mut f: F) -> Expr<B> {
         match self {
@@ -30,26 +28,138 @@ impl<A> Expr<A> {
     }
 }
 
-impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
-    async fn try_join_expr(self) -> Result<Expr<A>, E> {
-        match self {
-            Expr::Add(a, b) => {
-                let (a, b) = future::try_join(a, b).await?;
-                Ok(Expr::Add(a, b))
-            }
-            Expr::Sub(a, b) => {
-                let (a, b) = future::try_join(a, b).await?;
-                Ok(Expr::Sub(a, b))
-            }
 
-            Expr::Mul(a, b) => {
-                let (a, b) = future::try_join(a, b).await?;
-                Ok(Expr::Mul(a, b))
-            }
+trait MapToUsize {
+    type Unwrapped;
+    type To;
+    fn fmap_into_usize<F: FnMut(Self::Unwrapped) -> usize>(self, f: F) -> Self::To;
+}
 
-            Expr::LiteralInt(x) => Ok(Expr::LiteralInt(x)),
-            Expr::DatabaseRef(key) => Ok(Expr::DatabaseRef(key)),
+impl<A> MapToUsize for Expr<A> {
+    type To = Expr<usize>;
+    type Unwrapped = A;
+    fn fmap_into_usize<F: FnMut(Self::Unwrapped) -> usize>(self, f: F) -> Self::To {
+        self.fmap_into(f)
+    }
+}
+
+trait MapFromUsize {
+    type Unwrapped;
+    type From;
+    fn fmap_from_usize<F: FnMut(usize) -> Self::Unwrapped>(from: Self::From, f: F) -> Self;
+}
+
+impl<A> MapFromUsize for Expr<A> {
+    type From = Expr<usize>;
+    type Unwrapped = A;
+    fn fmap_from_usize<F: FnMut(usize) -> Self::Unwrapped>(from: Self::From, f: F) -> Self {
+        from.fmap_into(f)
+    }
+}
+
+
+
+trait TryJoinFuture<'a> {
+    type Output;
+    type Error;
+    fn try_join(self) -> BoxFuture<'a, Result<Self::Output, Self::Error>>;
+}
+
+impl<'a, A: 'a + Send, E: 'a> TryJoinFuture<'a> for Expr<BoxFuture<'a, Result<A, E>>> {
+    type Output = Expr<A>;
+    type Error = E;
+
+    fn try_join(self) -> BoxFuture<'a, Result<Self::Output, Self::Error>> {
+        try_join_helper(self).boxed()
+    }
+}
+
+async fn try_join_helper<A, E>(e: Expr<BoxFuture<'_, Result<A, E>>>) -> Result<Expr<A>, E> {
+    match e {
+        Expr::Add(a, b) => {
+            let (a, b) = future::try_join(a, b).await?;
+            Ok(Expr::Add(a, b))
         }
+        Expr::Sub(a, b) => {
+            let (a, b) = future::try_join(a, b).await?;
+            Ok(Expr::Sub(a, b))
+        }
+
+        Expr::Mul(a, b) => {
+            let (a, b) = future::try_join(a, b).await?;
+            Ok(Expr::Mul(a, b))
+        }
+
+        Expr::LiteralInt(x) => Ok(Expr::LiteralInt(x)),
+        Expr::DatabaseRef(key) => Ok(Expr::DatabaseRef(key)),
+    }
+}
+
+pub trait CoRecursive<A> {
+    type CoAlgFrom;
+    type CoAlgTo;
+
+    fn ana<F: Fn(Self::CoAlgFrom) -> Self::CoAlgTo>(a: Self::CoAlgFrom, coalg: F) -> Self;
+}
+
+pub trait Recursive<A> {
+    type AlgFrom;
+    type AlgTo;
+    fn cata<F: FnMut(Self::AlgFrom) -> Self::AlgTo>(self, alg: F) -> Self::AlgTo;
+}
+
+pub struct RecursiveStruct<F> {
+    // nonempty, in topological-sorted order
+    elems: Vec<F>,
+}
+
+pub type RecursiveExpr2 = RecursiveStruct<Expr<usize>>;
+
+impl<A> CoRecursive<A> for RecursiveStruct<Expr<usize>> {
+    type CoAlgFrom = A;
+
+    type CoAlgTo = Expr<A>;
+
+    fn ana<F: Fn(Self::CoAlgFrom) -> Self::CoAlgTo>(a: Self::CoAlgFrom, coalg: F) -> Self {
+        let mut frontier = VecDeque::from([a]);
+        let mut elems = vec![];
+
+        // unfold to build a vec of elems while preserving topo order
+        while let Some(seed) = frontier.pop_front() {
+            let node = coalg(seed);
+
+            let node: Expr<usize> = node.fmap_into(|aa| {
+                frontier.push_back(aa);
+                // this is the sketchy bit, here - idx of pointed-to element
+                elems.len() + frontier.len()
+            });
+
+            elems.push(node);
+        }
+
+        Self { elems }
+    }
+}
+
+impl<A> Recursive<A> for RecursiveStruct<Expr<usize>> {
+    type AlgFrom = Expr<A>;
+
+    type AlgTo = A;
+
+    fn cata<F: FnMut(Self::AlgFrom) -> Self::AlgTo>(self, mut alg: F) -> Self::AlgTo {
+        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
+
+        for (idx, node) in self.elems.into_iter().enumerate().rev() {
+            let alg_res = {
+                // each node is only referenced once so just remove it to avoid cloning owned data
+                let node = node.fmap_into(|x| results.remove(&x).expect("node not in result map"));
+                alg(node)
+            };
+            results.insert(idx, alg_res);
+        }
+
+        // assumes nonempty recursive structure
+        results.remove(&0).unwrap()
     }
 }
 
@@ -126,7 +236,7 @@ fn cata_async_helper<
     f: F,
 ) -> BoxFuture<'a, Result<A, E>> {
     async move {
-        let e = e.try_join_expr().await?;
+        let e = e.try_join().await?;
         f(e).await
     }
     .boxed()
