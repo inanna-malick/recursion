@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use petgraph_schemes::{
+use exprs::{
     recursive_naive::{from_ast, ExprAST},
     *,
 };

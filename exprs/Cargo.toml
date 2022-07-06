@@ -1,0 +1,11 @@
+[package]
+name = "exprs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+futures = "0.3.21"
+pg-embed = "0.6.5"
+proptest = "1.0.0"
+tokio = "1.0"

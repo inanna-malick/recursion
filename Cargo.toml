@@ -1,15 +1,6 @@
-[package]
-name = "petgraph-schemes"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-
-proptest = "1.0.0"
-
-futures = "0.3.21"
-
-tokio = "1.0"
-pg-embed = "0.6.5"
+members = [
+    "proc-macro-recursive",
+    "exprs",
+]
