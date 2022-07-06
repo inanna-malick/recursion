@@ -113,7 +113,7 @@ pub trait CoRecursive<A, O> {
     fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self;
 }
 
-impl<A, O> CoRecursive<A, O> for RecursiveStruct<Underlying> {
+impl<A, O> CoRecursive<A, O> for RecursiveStruct<Expr<usize>> {
     fn ana<F: Fn(A) -> Expr<A>>(a: A, coalg: F) -> Self {
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
