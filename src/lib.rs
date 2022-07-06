@@ -11,9 +11,9 @@ use recursive::RecursiveExpr;
 use std::collections::HashMap;
 
 #[cfg(test)]
-use proptest::prelude::*;
+use crate::recursive_naive::{arb_expr, from_ast, naive_eval};
 #[cfg(test)]
-use crate::recursive_naive::{from_ast, naive_eval, arb_expr};
+use proptest::prelude::*;
 
 // wow, this is surprisingly easy - can add type checking to make it really pop!
 pub fn eval(db: &HashMap<DBKey, i64>, g: RecursiveExpr) -> i64 {
@@ -48,27 +48,46 @@ pub async fn eval_postgres(db: &DB, g: RecursiveExpr) -> Result<i64, EvalError> 
 type EvalError = String;
 
 // generate a bunch of expression trees and evaluate them
-// NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
 #[cfg(test)]
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10000))]
     #[test]
-    fn evals_correctly((expr, db_state) in arb_expr()) {
+    fn expr_eval((expr, db_state) in arb_expr()) {
+        // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let expr = Box::new(expr);
         let simple = naive_eval(&db_state, expr.clone());
         let complex = eval(&db_state, from_ast(expr.clone()));
 
         assert_eq!(simple, complex);
     }
+}
 
-    // #![proptest_config(ProptestConfig::with_cases(500))]
-    // #[test]
-    // fn evals_correctly_postgres(expr in arb_expr()) {
-    //     // TODO/FIMXE: mb don't bring a database up for each test lol
-    //     let expr = Box::new(expr);
-    //     let db_state = HashMap::new();
-    //     let complex = eval(&db_state, from_ast(expr.clone()));
+// generate a bunch of expression trees and evaluate them
+#[cfg(test)]
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(5))]
+    #[test]
+    fn expr_eval_pg((expr, db_state) in arb_expr()) {
+        use tokio::runtime::Runtime;
 
-    //     assert_eq!(simple, complex);
-    // }
+        // Create the runtime
+        let rt  = Runtime::new().unwrap();
+
+        // TODO/FIMXE: mb don't bring a database up for each test lol this is trash
+        let expr = Box::new(expr);
+        let simple = naive_eval(&db_state, expr.clone());
+        let f = crate::db::run_embedded_db("test db", |conn_str| { 
+            DB::with_db(conn_str, |db| {
+                let expr = from_ast(expr.clone());
+                let db = db.clone();
+                let db_state = db_state.clone();
+                async move {
+                db.init(&db_state).await.unwrap();
+                eval_postgres(&db, expr).await
+        }} )
+        });
+        let pg = rt.block_on(f).unwrap().unwrap().unwrap(); // unwrap all the different typed errors from the embed/with db/etc stuff
+
+        assert_eq!(simple, pg);
+    }
 }

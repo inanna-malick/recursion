@@ -5,7 +5,6 @@ use futures::FutureExt;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-
 // this is the core of what users provide
 
 #[derive(Debug, Clone, Copy)]
@@ -21,14 +20,14 @@ pub enum Expr<A> {
 
 impl<A> Expr<A> {
     pub fn fmap_into<B, F: FnMut(A) -> B>(self, mut f: F) -> Expr<B> {
-    match self {
-        Expr::Add(a, b) => Expr::Add(f(a), f(b)),
-        Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
-        Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
-        Expr::LiteralInt(x) => Expr::LiteralInt(x),
-        Expr::DatabaseRef(x) => Expr::DatabaseRef(x),
+        match self {
+            Expr::Add(a, b) => Expr::Add(f(a), f(b)),
+            Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
+            Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
+            Expr::LiteralInt(x) => Expr::LiteralInt(x),
+            Expr::DatabaseRef(x) => Expr::DatabaseRef(x),
+        }
     }
-}
 }
 
 impl<A, E> Expr<BoxFuture<'_, Result<A, E>>> {
@@ -88,9 +87,7 @@ impl RecursiveExpr {
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it to avoid cloning owned data
-                let node = node.fmap_into( |x| {
-                    results.remove(&x).expect("node not in result map")
-                });
+                let node = node.fmap_into(|x| results.remove(&x).expect("node not in result map"));
                 alg(node)
             };
             results.insert(idx, alg_res);
@@ -110,10 +107,9 @@ impl RecursiveExpr {
         self,
         alg: F,
     ) -> Result<A, E> {
-        let execution_graph = self.cata( |e|  
+        let execution_graph = self.cata(|e|
             // NOTE: want to directly pass in fn but can't because borrow checker - not sure how to do this, causes spurious clippy warning
-            cata_async_helper(e,  |x| alg(x))
-        );
+            cata_async_helper(e,  |x| alg(x)));
 
         execution_graph.await
     }

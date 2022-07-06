@@ -6,6 +6,7 @@ use pg_embed::pg_errors::PgEmbedError;
 use pg_embed::pg_fetch::{PgFetchSettings, PG_V13};
 use pg_embed::postgres::{PgEmbed, PgSettings};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use tempdir::TempDir;
 use tokio_postgres::{Client, NoTls};
@@ -13,7 +14,7 @@ use tokio_postgres::{Client, NoTls};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DBKey(pub u32);
 
-pub async fn run_embedded_db<A, Fut: Future<Output = A>, F: Fn(&str) -> Fut>(
+pub async fn run_embedded_db<A, Fut: Future<Output = A>, F: Fn(String) -> Fut>(
     db_name: &str,
     f: F,
 ) -> Result<A, PgEmbedError> {
@@ -54,7 +55,7 @@ pub async fn run_embedded_db<A, Fut: Future<Output = A>, F: Fn(&str) -> Fut>(
     // to enable migrations view the [Usage] section for details
     pg.create_database(db_name).await.unwrap();
 
-    let res = f(&pg.full_db_uri("database_name")).await;
+    let res = f(pg.full_db_uri("database_name")).await;
 
     // drop a database
     // to enable migrations view [Usage] for details
@@ -71,11 +72,11 @@ pub struct DB {
 }
 
 impl DB {
-    pub async fn with_db<A, Fut: Future<Output = A>, F: Fn(Self) -> Fut>(
-        conn_str: &str,
+    pub async fn with_db<A, Fut: Future<Output = A>, F: Fn(Arc<Self>) -> Fut>(
+        conn_str: String,
         f: F,
     ) -> Result<A, tokio_postgres::Error> {
-        let (client, connection) = tokio_postgres::connect(conn_str, NoTls).await?;
+        let (client, connection) = tokio_postgres::connect(&conn_str, NoTls).await?;
 
         // The connection object performs the actual communication with the database,
         // so spawn it off to run on its own.
@@ -85,10 +86,12 @@ impl DB {
             }
         });
 
-        Ok(f(DB { client }).await)
+        let db = Arc::new(DB { client }) ;
+
+        Ok(f(db).await)
     }
 
-    pub async fn init(&self, state: HashMap<DBKey, i64>) -> Result<(), tokio_postgres::Error> {
+    pub async fn init(&self, state: &HashMap<DBKey, i64>) -> Result<(), tokio_postgres::Error> {
         self.client
             .execute(
                 "CREATE TABLE IF NOT EXISTS Entries (
@@ -100,8 +103,8 @@ impl DB {
             )
             .await?;
 
-        for (k, v) in state.into_iter() {
-            self.put(k, v).await?;
+        for (k, v) in state.iter() {
+            self.put(*k, *v).await?;
         }
 
         Ok(())
