@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use exprs::{
     recursive_naive::{from_ast, ExprAST},
-    *,
+    *, linked_list::{to_str, from_str},
 };
 
 fn main() {
@@ -22,13 +22,11 @@ fn main() {
 
     println!("res: {:?}", evaluated);
 
-    // LMAO! Ok now it's time to figure out how to render an AST for debugging purposes
-    // NOTE: wait, what the fuck, this actually works? spooky, do some extensive testing
 
-    // wait! I can do property based testing (also leave comments in as blog post notes)
-    // proptest strat (via rain):
-    // have simple stack overflow prone impl that is obviously correct, and also actual impl via from_ast/eval
-    // generate many many expression trees and run them through both, asserting that the result is the same
+    let long_string = (0..100000).map(|_| "abc").collect::<String>();
 
-    // this actually provides a viable strategy that doesn't require writing a bunch of box box box etc boilerplate yay
+    let long_string_haskell_style = from_str(&long_string);
+    let long_string_round_trip = to_str(long_string_haskell_style);
+
+    assert_eq!(long_string, long_string_round_trip);
 }
