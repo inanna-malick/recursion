@@ -15,7 +15,6 @@ pub trait Recursive<A, O> {
 // answer to visitor pattern question (how to do some actions in before, some in after branches)
 // my answer: do the 'before'/'filter' type stuff in ana, as the structure is built (not a great answer)
 
-
 /// Support for corecursion - unfolding a recursive structure from a seed
 pub trait CoRecursive<A, O> {
     fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self;
