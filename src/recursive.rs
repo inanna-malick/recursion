@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
+use futures::future::BoxFuture;
+use futures::FutureExt;
+
 /// Generic trait used to represent a recursive structure of some type F<usize>
 pub struct RecursiveStruct<F> {
     // nonempty, in topological-sorted order
@@ -18,6 +21,20 @@ pub trait Recursive<A, O> {
 /// Support for corecursion - unfolding a recursive structure from a seed
 pub trait CoRecursive<A, O> {
     fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self;
+}
+
+pub trait CoRecursiveAsync<A, O> {
+    fn ana_result_async<
+        'a,
+        E: Send + 'a,
+        F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
+    >(
+        a: A,
+        coalg: F,
+    ) -> BoxFuture<'a, Result<Self, E>>
+    where
+        Self: Sized,
+        A: Send + 'a;
 }
 
 impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for RecursiveStruct<U> {
@@ -39,6 +56,45 @@ impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for Recur
         }
 
         Self { elems }
+    }
+}
+
+impl<A, U: Send, O: Functor<usize, Unwrapped = A, To = U>> CoRecursiveAsync<A, O>
+    for RecursiveStruct<U>
+{
+    fn ana_result_async<
+        'a,
+        E: Send + 'a,
+        F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
+    >(
+        a: A,
+        coalg: F,
+    ) -> BoxFuture<'a, Result<Self, E>>
+    where
+        Self: Sized,
+        U: Send,
+        A: Send + 'a,
+    {
+        async move {
+            let mut frontier = VecDeque::from([a]);
+            let mut elems = vec![];
+
+            // unfold to build a vec of elems while preserving topo order
+            while let Some(seed) = frontier.pop_front() {
+                let node = coalg(seed).await?;
+
+                let node = node.fmap_into(|aa| {
+                    frontier.push_back(aa);
+                    // idx of pointed-to element determined from frontier + elems size
+                    elems.len() + frontier.len()
+                });
+
+                elems.push(node);
+            }
+
+            Ok(Self { elems })
+        }
+        .boxed()
     }
 }
 
