@@ -47,8 +47,6 @@ pub fn naive_eval(db: &HashMap<DBKey, i64>, expr: Box<ExprAST>) -> i64 {
     }
 }
 
-
-
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
 proptest! {

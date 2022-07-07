@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use exprs::{
-    examples::linked_list::{from_str, to_str},
-    examples::expr::naive::{from_ast, ExprAST},
     examples::expr::eval::eval,
+    examples::expr::naive::{from_ast, ExprAST},
+    examples::linked_list::{from_str, to_str},
 };
 
 fn main() {

@@ -1,7 +1,5 @@
 use crate::recursive::{CoRecursive, Functor, Recursive, RecursiveStruct};
 
-
-
 /// A linked list of characters. Not good or idiomatic, but it provides a nice minimal example
 #[derive(Debug, Clone, Copy)]
 pub enum CharLinkedList<A> {

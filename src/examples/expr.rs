@@ -8,7 +8,6 @@ use futures::future;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
-
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
 pub enum Expr<A> {

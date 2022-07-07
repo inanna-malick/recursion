@@ -7,11 +7,14 @@ pub struct RecursiveStruct<F> {
     elems: Vec<F>,
 }
 
-
 /// Support for recursion - folding a recursive structure into a single seed
 pub trait Recursive<A, O> {
     fn cata<F: FnMut(O) -> A>(self, alg: F) -> A;
 }
+
+// answer to visitor pattern question (how to do some actions in before, some in after branches)
+// my answer: do the 'before'/'filter' type stuff in ana, as the structure is built (not a great answer)
+
 
 /// Support for corecursion - unfolding a recursive structure from a seed
 pub trait CoRecursive<A, O> {
@@ -64,10 +67,6 @@ pub trait Functor<B> {
     /// fmap over an owned value. Sort of like 'into_iter()' except for arbitrary recursive structures
     fn fmap_into<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To;
 }
-
-
-
-
 
 // trait TryJoinFuture<'a> {
 //     type Output;
