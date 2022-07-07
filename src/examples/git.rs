@@ -53,55 +53,53 @@ impl RecursiveFileTree {
         substring: &'a str,
         filter: &'a F,
     ) -> BoxFuture<'a, Vec<GrepResult>> {
-
-
-
-
         // dear lord, this is absolutely atrocious
-        self.cata(
-            move |node: FileTree<
-                Box<dyn FnOnce(Vec<PathComponent>) -> BoxFuture<'a, Vec<GrepResult>> + Send + Sync>,
-            >| {
-                Box::new({
-                    move |path| {
-                        async move {
-                            match node {
-                                FileTree::File(metadata) => {
-                                    let contents = fs::read_to_string(path.join("/"))
-                                        .expect("todo short circuit here");
-                                    if contents.contains(substring) {
-                                        vec![GrepResult {
-                                            path,
-                                            metadata,
-                                            contents: contents,
-                                        }]
-                                    } else {
-                                        Vec::new()
-                                    }
-                                }
-                                FileTree::Dir(search_results_futs) => {
-                                    let mut all_results = Vec::new();
-                                    for (path_component, search_result_fut) in
-                                        search_results_futs.into_iter()
-                                    {
-                                        let mut child_path = path.clone();
-                                        child_path.push(path_component);
-                                        if filter(&child_path[..]) {
-                                            // only expand child search branch if filter fn returns true
-                                            let search_result = search_result_fut(child_path).await;
-                                            all_results.extend(search_result.into_iter());
-                                        }
-                                    }
-                                    all_results
-                                }
-                            }
-                        }
-                        .boxed()
-                    }
-                })
-            },
-        )(Vec::new())
+        let f = self.cata(
+            move |node| Box::new( move|path| alg::<'a, _>(node, path, substring, filter)),
+        );
+
+        f(Vec::new())
     }
+}
+
+fn alg<'a, F: Fn(&[PathComponent]) -> bool + Send + Sync + 'a>(
+    node: FileTree<
+        Box<dyn FnOnce(Vec<PathComponent>) -> BoxFuture<'a, Vec<GrepResult>> + Send + Sync>,
+    >,
+    path: Vec<PathComponent>,
+    substring: &'a str,
+    filter: &'a F,
+) -> BoxFuture<'a, Vec<GrepResult>> {
+    async move {
+        match node {
+            FileTree::File(metadata) => {
+                let contents = fs::read_to_string(path.join("/")).expect("todo short circuit here");
+                if contents.contains(substring) {
+                    vec![GrepResult {
+                        path,
+                        metadata,
+                        contents: contents,
+                    }]
+                } else {
+                    Vec::new()
+                }
+            }
+            FileTree::Dir(search_results_futs) => {
+                let mut all_results = Vec::new();
+                for (path_component, search_result_fut) in search_results_futs.into_iter() {
+                    let mut child_path = path.clone();
+                    child_path.push(path_component);
+                    if filter(&child_path[..]) {
+                        // only expand child search branch if filter fn returns true
+                        let search_result = search_result_fut(child_path).await;
+                        all_results.extend(search_result.into_iter());
+                    }
+                }
+                all_results
+            }
+        }
+    }
+    .boxed()
 }
 
 // todo: grep files in a given commit
