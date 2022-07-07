@@ -47,16 +47,15 @@ impl RecursiveFileTree {
         })
     }
 
-    // return vec of grep results
+    // return vec of grep results, with short circuits, via magic
+    // note: dear lord, this is absolutely atrocious, but it works. hahahahahahahahhahafewhafe
     pub fn grep<'a, F: Fn(&[PathComponent]) -> bool + Send + Sync + 'a>(
         self,
         substring: &'a str,
         filter: &'a F,
     ) -> BoxFuture<'a, Vec<GrepResult>> {
-        // dear lord, this is absolutely atrocious
-        let f = self.cata(
-            move |node| Box::new( move|path| alg::<'a, _>(node, path, substring, filter)),
-        );
+        let f = self
+            .cata(move |node| Box::new(move |path| alg::<'a, _>(node, path, substring, filter)));
 
         f(Vec::new())
     }
@@ -64,7 +63,7 @@ impl RecursiveFileTree {
 
 fn alg<'a, F: Fn(&[PathComponent]) -> bool + Send + Sync + 'a>(
     node: FileTree<
-        Box<dyn FnOnce(Vec<PathComponent>) -> BoxFuture<'a, Vec<GrepResult>> + Send + Sync>,
+        Box<dyn FnOnce(Vec<PathComponent>) -> BoxFuture<'a, Vec<GrepResult>> + Send + Sync + 'a>,
     >,
     path: Vec<PathComponent>,
     substring: &'a str,
