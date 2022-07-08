@@ -120,14 +120,13 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for Recursi
 
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let alg_res = {
-                // each node is only referenced once so just remove it to avoid cloning owned data
+                // each node is only referenced once so just remove it
                 let node = node.fmap(|x| results.remove(&x).expect("node not in result map"));
                 alg(node)
             };
             results.insert(idx, alg_res);
         }
 
-        // assumes nonempty recursive structure
         results.remove(&0).unwrap()
     }
 }
@@ -141,14 +140,13 @@ where
 
         for (idx, node) in self.elems.iter().enumerate().rev() {
             let alg_res = {
-                // each node is only referenced once so just remove it to avoid cloning owned data
+                // each node is only referenced once so just remove it
                 let node = node.fmap(|x| results.remove(&x).expect("node not in result map"));
                 alg(node)
             };
             results.insert(idx, alg_res);
         }
 
-        // assumes nonempty recursive structure
         results.remove(&0).unwrap()
     }
 }

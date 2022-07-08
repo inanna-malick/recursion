@@ -9,6 +9,9 @@ async fn main() -> std::io::Result<()> {
     let current_dir = std::env::current_dir()?;
 
     let fs_tree = RecursiveFileTree::build(".".to_string()).await?;
+
+    println!("fs tree depth: {:?}", fs_tree.depth());
+
     let grep_res = fs_tree
         .grep(current_dir, "Expr", &|path| {
             let git_dir_component = OsStr::new(".git");
