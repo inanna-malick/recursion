@@ -15,6 +15,8 @@ pub trait Recursive<A, O> {
     fn cata<F: FnMut(O) -> A>(self, alg: F) -> A;
 }
 
+// TODO: filtered cata that has a pre-anything fn of, like, forall x F(x) -> Fx, so it can, like, drop directories or w/e by looking at 1 layer only
+
 // answer to visitor pattern question (how to do some actions in before, some in after branches)
 // my answer: do the 'before'/'filter' type stuff in ana, as the structure is built (not a great answer)
 

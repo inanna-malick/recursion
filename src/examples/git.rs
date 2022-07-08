@@ -65,6 +65,8 @@ impl RecursiveFileTree {
         f(vec![root_dir])
     }
 
+
+
     pub async fn build(root_path: String) -> std::io::Result<Self> {
         println!("build {:?}", root_path);
         Self::ana_result_async(None, |dir_entry: Option<DirEntry>| {
