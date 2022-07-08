@@ -22,7 +22,7 @@ impl<A, B> Functor<B> for Expr<A> {
     type To = Expr<B>;
     type Unwrapped = A;
 
-    fn fmap_into<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             Expr::Add(a, b) => Expr::Add(f(a), f(b)),
             Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),

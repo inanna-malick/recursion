@@ -10,6 +10,20 @@ pub struct RecursiveStruct<F> {
     elems: Vec<F>,
 }
 
+impl<'a, F> RecursiveStruct<F> {
+    pub fn as_ref(&'a self) -> RecursiveStructRef<'a, F> {
+        RecursiveStructRef {
+            elems: &self.elems[..],
+        }
+    }
+}
+
+/// Generic trait used to represent a refernce to a recursive structure of some type F<usize>
+pub struct RecursiveStructRef<'a, F> {
+    // nonempty, in topological-sorted order
+    elems: &'a [F],
+}
+
 /// Support for recursion - folding a recursive structure into a single seed
 pub trait Recursive<A, O> {
     fn cata<F: FnMut(O) -> A>(self, alg: F) -> A;
@@ -48,7 +62,7 @@ impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for Recur
         while let Some(seed) = frontier.pop_front() {
             let node = coalg(seed);
 
-            let node = node.fmap_into(|aa| {
+            let node = node.fmap(|aa| {
                 frontier.push_back(aa);
                 // idx of pointed-to element determined from frontier + elems size
                 elems.len() + frontier.len()
@@ -85,7 +99,7 @@ impl<A, U: Send, O: Functor<usize, Unwrapped = A, To = U>> CoRecursiveAsync<A, O
             while let Some(seed) = frontier.pop_front() {
                 let node = coalg(seed).await?;
 
-                let node = node.fmap_into(|aa| {
+                let node = node.fmap(|aa| {
                     frontier.push_back(aa);
                     // idx of pointed-to element determined from frontier + elems size
                     elems.len() + frontier.len()
@@ -107,7 +121,28 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for Recursi
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it to avoid cloning owned data
-                let node = node.fmap_into(|x| results.remove(&x).expect("node not in result map"));
+                let node = node.fmap(|x| results.remove(&x).expect("node not in result map"));
+                alg(node)
+            };
+            results.insert(idx, alg_res);
+        }
+
+        // assumes nonempty recursive structure
+        results.remove(&0).unwrap()
+    }
+}
+
+impl<'a, A, O: 'a, U> Recursive<A, O> for RecursiveStructRef<'a, U>
+where
+    &'a U: Functor<A, To = O, Unwrapped = usize>,
+{
+    fn cata<F: FnMut(O) -> A>(self, mut alg: F) -> A {
+        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
+
+        for (idx, node) in self.elems.iter().enumerate().rev() {
+            let alg_res = {
+                // each node is only referenced once so just remove it to avoid cloning owned data
+                let node = node.fmap(|x| results.remove(&x).expect("node not in result map"));
                 alg(node)
             };
             results.insert(idx, alg_res);
@@ -121,12 +156,6 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for Recursi
 pub trait Functor<B> {
     type Unwrapped;
     type To;
-    /// fmap over an owned value. Sort of like 'into_iter()' except for arbitrary recursive structures
-    fn fmap_into<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To;
+    /// fmap over an owned value
+    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To;
 }
-
-// trait TryJoinFuture<'a> {
-//     type Output;
-//     type Error;
-//     fn try_join(self) -> BoxFuture<'a, Result<Self::Output, Self::Error>>;
-// }

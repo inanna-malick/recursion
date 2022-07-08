@@ -11,7 +11,7 @@ impl<A, B> Functor<B> for CharLinkedList<A> {
     type To = CharLinkedList<B>;
     type Unwrapped = A;
 
-    fn fmap_into<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             CharLinkedList::Cons(c, a) => CharLinkedList::Cons(c, f(a)),
             CharLinkedList::Nil => CharLinkedList::Nil,
