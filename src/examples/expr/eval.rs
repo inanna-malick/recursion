@@ -12,7 +12,7 @@ use crate::examples::expr::naive::{arb_expr, from_ast, ExprAST};
 use proptest::prelude::*;
 
 pub fn eval(db: &HashMap<DBKey, i64>, g: RecursiveExpr) -> i64 {
-    g.cata(|node| match node {
+    g.fold(|node| match node {
         Expr::Add(a, b) => a + b,
         Expr::Sub(a, b) => a - b,
         Expr::Mul(a, b) => a * b,

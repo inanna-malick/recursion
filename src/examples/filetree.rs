@@ -49,7 +49,7 @@ pub type RecursiveFileTree = RecursiveStruct<FileTree<usize>>;
 
 impl RecursiveFileTree {
     pub fn depth(&self) -> usize {
-        self.as_ref().cata(|node: FileTreeRef<usize>| match node {
+        self.as_ref().fold(|node: FileTreeRef<usize>| match node {
             FileTreeRef::Dir(depths) => depths.into_iter().map(|(_k, v)| v).max().unwrap_or(0) + 1,
             _ => 1,
         })

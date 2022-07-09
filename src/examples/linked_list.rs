@@ -22,7 +22,7 @@ impl<A, B> Functor<B> for CharLinkedList<A> {
 pub type RecursiveString = RecursiveStruct<CharLinkedList<usize>>;
 
 pub fn from_str(s: &str) -> RecursiveString {
-    RecursiveString::ana(s.chars(), |mut it| {
+    RecursiveString::unfold(s.chars(), |mut it| {
         if let Some(c) = it.next() {
             CharLinkedList::Cons(c, it)
         } else {
@@ -32,7 +32,7 @@ pub fn from_str(s: &str) -> RecursiveString {
 }
 
 pub fn to_str(r: RecursiveString) -> String {
-    r.cata(|cll| match cll {
+    r.fold(|cll| match cll {
         CharLinkedList::Cons(c, s) => format!("{}{}", c, s),
         CharLinkedList::Nil => String::new(),
     })

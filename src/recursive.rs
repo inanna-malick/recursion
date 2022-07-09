@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
-/// Generic trait used to represent a recursive structure of some type F<usize>
+/// Generic struct used to represent a recursive structure of some type F<usize>
 pub struct RecursiveStruct<F> {
     // nonempty, in topological-sorted order
     elems: Vec<F>,
@@ -18,7 +18,7 @@ impl<'a, F> RecursiveStruct<F> {
     }
 }
 
-/// Generic trait used to represent a refernce to a recursive structure of some type F<usize>
+/// Generic struct used to represent a refernce to a recursive structure of some type F<usize>
 pub struct RecursiveStructRef<'a, F> {
     // nonempty, in topological-sorted order
     elems: &'a [F],
@@ -26,7 +26,7 @@ pub struct RecursiveStructRef<'a, F> {
 
 /// Support for recursion - folding a recursive structure into a single seed
 pub trait Recursive<A, O> {
-    fn cata<F: FnMut(O) -> A>(self, alg: F) -> A;
+    fn fold<F: FnMut(O) -> A>(self, alg: F) -> A;
 }
 
 // TODO: filtered cata that has a pre-anything fn of, like, forall x F(x) -> Fx, so it can, like, drop directories or w/e by looking at 1 layer only
@@ -36,11 +36,11 @@ pub trait Recursive<A, O> {
 
 /// Support for corecursion - unfolding a recursive structure from a seed
 pub trait CoRecursive<A, O> {
-    fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self;
+    fn unfold<F: Fn(A) -> O>(a: A, coalg: F) -> Self;
 }
 
 pub trait CoRecursiveAsync<A, O> {
-    fn ana_result_async<
+    fn unfold_async<
         'a,
         E: Send + 'a,
         F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
@@ -54,7 +54,7 @@ pub trait CoRecursiveAsync<A, O> {
 }
 
 impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for RecursiveStruct<U> {
-    fn ana<F: Fn(A) -> O>(a: A, coalg: F) -> Self {
+    fn unfold<F: Fn(A) -> O>(a: A, coalg: F) -> Self {
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
 
@@ -75,10 +75,11 @@ impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for Recur
     }
 }
 
+// TODO: depth first traversal by replacing queue with a stack and using a hashmap instead of (more compact, but inefficient) vec append
 impl<A, U: Send, O: Functor<usize, Unwrapped = A, To = U>> CoRecursiveAsync<A, O>
     for RecursiveStruct<U>
 {
-    fn ana_result_async<
+    fn unfold_async<
         'a,
         E: Send + 'a,
         F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
@@ -115,7 +116,7 @@ impl<A, U: Send, O: Functor<usize, Unwrapped = A, To = U>> CoRecursiveAsync<A, O
 }
 
 impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for RecursiveStruct<U> {
-    fn cata<F: FnMut(O) -> A>(self, mut alg: F) -> A {
+    fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
         let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
 
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
@@ -135,7 +136,7 @@ impl<'a, A, O: 'a, U> Recursive<A, O> for RecursiveStructRef<'a, U>
 where
     &'a U: Functor<A, To = O, Unwrapped = usize>,
 {
-    fn cata<F: FnMut(O) -> A>(self, mut alg: F) -> A {
+    fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
         let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
 
         for (idx, node) in self.elems.iter().enumerate().rev() {

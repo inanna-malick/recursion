@@ -18,7 +18,7 @@ pub enum ExprAST {
 
 // or, IRL - parsed TOML or string or etc
 pub fn from_ast(ast: Box<ExprAST>) -> RecursiveExpr {
-    RecursiveExpr::ana(ast, |x| match *x {
+    RecursiveExpr::unfold(ast, |x| match *x {
         ExprAST::Add(a, b) => Expr::Add(a, b),
         ExprAST::Sub(a, b) => Expr::Sub(a, b),
         ExprAST::Mul(a, b) => Expr::Mul(a, b),
@@ -32,7 +32,7 @@ impl ExprAST {
     fn keys(&self) -> Vec<DBKey> {
         let mut keys = Vec::new();
         // TODO: totally unneeded clone here, fixme
-        from_ast(Box::new(self.clone())).cata(|expr| match expr {
+        from_ast(Box::new(self.clone())).fold(|expr| match expr {
             Expr::DatabaseRef(k) => keys.push(k),
             _ => {}
         });

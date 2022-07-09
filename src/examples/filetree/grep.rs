@@ -1,11 +1,8 @@
 use crate::examples::filetree::{FileTree, RecursiveFileTree};
-use crate::recursive::{Recursive};
+use crate::recursive::Recursive;
 use futures::{future::BoxFuture, FutureExt};
 use regex::Regex;
-use std::{
-    fs::Metadata,
-    path::{PathBuf},
-};
+use std::{fs::Metadata, path::PathBuf};
 
 pub type LineNumber = usize;
 
@@ -18,17 +15,14 @@ pub struct GrepResult {
 
 impl RecursiveFileTree {
     // return vec of grep results, with short circuit
-    pub fn grep<'a, F: for<'x> Fn(&'x PathBuf) -> bool + Send + Sync + 'a>(
+    pub fn grep<'a>(
         self,
         root_dir: PathBuf,
         regex: &'a Regex,
-        filter: &'a F,
     ) -> BoxFuture<'a, std::io::Result<Vec<GrepResult>>> {
-        println!("grep");
-        let f = self.cata(move |node| {
-            Box::new(move |path| {
-                async move { grep_layer::<'a, _>(node, path, regex, filter).await }.boxed()
-            })
+        // println!("grep");
+        let f = self.fold(move |node| {
+            Box::new(move |path| async move { grep_layer(node, path, regex).await }.boxed())
         });
 
         f(root_dir)
@@ -40,21 +34,24 @@ type LazilyTraversableFileTree<'a, Res, Err> =
     FileTree<Box<dyn FnOnce(PathBuf) -> BoxFuture<'a, Result<Res, Err>> + Send + Sync + 'a>>;
 
 // grep a single layer of recursive FileTree structure
-async fn grep_layer<'a, F: for<'x> Fn(&'x PathBuf) -> bool + Send + Sync + 'a>(
+async fn grep_layer<'a>(
     node: LazilyTraversableFileTree<'a, Vec<GrepResult>, std::io::Error>,
     path: PathBuf,
     regex: &'a Regex,
-    filter: &'a F,
 ) -> std::io::Result<Vec<GrepResult>> {
+    // println!("grep layer {:?}", path);
     match node {
         FileTree::File(metadata) => {
-            let contents = tokio::fs::read_to_string(&path).await?;
-
             let mut matching_lines = Vec::new();
 
-            for (line_num, line) in contents.lines().enumerate() {
-                if regex.is_match(line) {
-                    matching_lines.push((line_num, line.to_string()));
+            match tokio::fs::read_to_string(&path).await {
+                Err(_) => {} // binary file or w/e, just skip. TODO: more granular handling
+                Ok(contents) => {
+                    for (line_num, line) in contents.lines().enumerate() {
+                        if regex.is_match(line) {
+                            matching_lines.push((line_num, line.to_string()));
+                        }
+                    }
                 }
             }
 
@@ -73,11 +70,8 @@ async fn grep_layer<'a, F: for<'x> Fn(&'x PathBuf) -> bool + Send + Sync + 'a>(
             for (path_component, search_result_fut) in search_results_futs.into_iter() {
                 let mut child_path = path.clone();
                 child_path.push(path_component);
-                if filter(&child_path) {
-                    // only expand child search branch if filter fn returns true
-                    let search_result = search_result_fut(child_path).await?;
-                    all_results.extend(search_result.into_iter());
-                }
+                let search_result = search_result_fut(child_path).await?;
+                all_results.extend(search_result.into_iter());
             }
             Ok(all_results)
         }

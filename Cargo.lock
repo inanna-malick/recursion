@@ -453,18 +453,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "recursive"
-version = "0.1.0"
-dependencies = [
- "clap",
- "colored",
- "futures",
- "proptest",
- "regex",
- "tokio",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -509,6 +497,18 @@ dependencies = [
  "quick-error 1.2.3",
  "tempfile",
  "wait-timeout",
+]
+
+[[package]]
+name = "schemes"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "colored",
+ "futures",
+ "proptest",
+ "regex",
+ "tokio",
 ]
 
 [[package]]

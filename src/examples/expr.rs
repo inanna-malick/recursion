@@ -46,7 +46,7 @@ impl RecursiveExpr {
         self,
         alg: F,
     ) -> Result<A, E> {
-        let execution_graph = self.cata(|e|
+        let execution_graph = self.fold(|e|
             // NOTE: want to directly pass in fn but can't because borrow checker - not sure how to do this, causes spurious clippy warning
             cata_async_helper(e,  |x| alg(x)));
 
