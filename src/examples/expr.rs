@@ -44,11 +44,9 @@ impl RecursiveExpr {
         F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
     >(
         self,
-        alg: F,
+        alg: &'a F,
     ) -> Result<A, E> {
-        let execution_graph = self.fold(|e|
-            // NOTE: want to directly pass in fn but can't because borrow checker - not sure how to do this, causes spurious clippy warning
-            cata_async_helper(e,  |x| alg(x)));
+        let execution_graph = self.fold(|e| cata_async_helper(e, alg));
 
         execution_graph.await
     }
@@ -61,7 +59,7 @@ fn cata_async_helper<
     F: Fn(Expr<A>) -> BoxFuture<'a, Result<A, E>> + Send + Sync + 'a,
 >(
     e: Expr<BoxFuture<'a, Result<A, E>>>,
-    f: F,
+    f: &'a F,
 ) -> BoxFuture<'a, Result<A, E>> {
     async move {
         let e = e.try_join().await?;

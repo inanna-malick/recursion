@@ -1,11 +1,9 @@
 use crate::filetree::{FileTree, RecursiveFileTree};
-use schemes::recursive::CoRecursiveAsync;
 use futures::FutureExt;
+use schemes::recursive::CoRecursiveAsync;
 use std::ffi::OsString;
 use std::{collections::HashMap, path::Path};
 use tokio::fs::DirEntry;
-
-
 
 pub async fn build_file_tree<F: for<'x> Fn(&'x OsString) -> bool + Send + Sync>(
     root_path: String,

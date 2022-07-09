@@ -1,10 +1,10 @@
 mod filetree;
 
-use std::ffi::OsString;
 use clap::Parser;
 use colored::*;
 use filetree::{build::build_file_tree, search::search};
 use regex::Regex;
+use std::ffi::OsString;
 
 use crate::filetree::depth;
 
@@ -34,7 +34,6 @@ async fn main() -> std::io::Result<()> {
         !args.paths_to_ignore.contains(path_component)
     })
     .await?;
-
 
     println!("{} {:?}", "sparse filetree depth:".cyan(), depth(&fs_tree));
 

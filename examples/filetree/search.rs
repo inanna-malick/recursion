@@ -1,7 +1,7 @@
 use crate::filetree::{FileTree, RecursiveFileTree};
-use schemes::recursive::Recursive;
 use futures::{future::BoxFuture, FutureExt};
 use regex::Regex;
+use schemes::recursive::Recursive;
 use std::{fs::Metadata, path::PathBuf};
 
 pub type LineNumber = usize;
@@ -14,11 +14,11 @@ pub struct GrepResult {
 }
 
 // return vec of grep results, with short circuit
-pub fn search<'a>(
+pub fn search(
     tree: RecursiveFileTree,
     root_dir: PathBuf,
-    regex: &'a Regex,
-) -> BoxFuture<'a, std::io::Result<Vec<GrepResult>>> {
+    regex: &Regex,
+) -> BoxFuture<std::io::Result<Vec<GrepResult>>> {
     let f = tree.fold(move |node| {
         Box::new(move |path| async move { grep_layer(node, path, regex).await }.boxed())
     });

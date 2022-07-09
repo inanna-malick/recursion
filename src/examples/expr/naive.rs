@@ -31,10 +31,10 @@ impl ExprAST {
     #[cfg(test)]
     fn keys(&self) -> Vec<DBKey> {
         let mut keys = Vec::new();
-        // TODO: totally unneeded clone here, fixme
-        from_ast(Box::new(self.clone())).fold(|expr| match expr {
-            Expr::DatabaseRef(k) => keys.push(k),
-            _ => {}
+        from_ast(Box::new(self.clone())).fold(|expr| {
+            if let Expr::DatabaseRef(k) = expr {
+                keys.push(k)
+            }
         });
 
         keys
@@ -57,8 +57,7 @@ pub fn arb_expr() -> impl Strategy<Value = (ExprAST, HashMap<DBKey, i64>)> {
                     .prop_map(|(a, b)| ExprAST::Add(Box::new(a), Box::new(b))),
                 (inner.clone(), inner.clone())
                     .prop_map(|(a, b)| ExprAST::Sub(Box::new(a), Box::new(b))),
-                (inner.clone(), inner.clone())
-                    .prop_map(|(a, b)| ExprAST::Mul(Box::new(a), Box::new(b))),
+                (inner.clone(), inner).prop_map(|(a, b)| ExprAST::Mul(Box::new(a), Box::new(b))),
             ]
         },
     );

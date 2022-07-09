@@ -40,11 +40,7 @@ pub trait CoRecursive<A, O> {
 }
 
 pub trait CoRecursiveAsync<A, O> {
-    fn unfold_async<
-        'a,
-        E: Send + 'a,
-        F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
-    >(
+    fn unfold_async<'a, E: Send + 'a, F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a>(
         a: A,
         coalg: F,
     ) -> BoxFuture<'a, Result<Self, E>>
@@ -79,11 +75,7 @@ impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for Recur
 impl<A, U: Send, O: Functor<usize, Unwrapped = A, To = U>> CoRecursiveAsync<A, O>
     for RecursiveStruct<U>
 {
-    fn unfold_async<
-        'a,
-        E: Send + 'a,
-        F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
-    >(
+    fn unfold_async<'a, E: Send + 'a, F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a>(
         a: A,
         coalg: F,
     ) -> BoxFuture<'a, Result<Self, E>>
