@@ -2,6 +2,9 @@
 name = "schemes"
 version = "0.0.1-BETA"
 edition = "2021"
+description = "cache-aware recursion schemes in rust"
+license = "MIT OR Apache-2.0"
+
 
 [dependencies]
 futures = "0.3"
