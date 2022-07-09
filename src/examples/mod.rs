@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub mod expr;
-pub mod filetree;
+#[cfg(test)]
 pub mod linked_list;

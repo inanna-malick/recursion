@@ -1,5 +1,5 @@
-use crate::examples::filetree::{FileTree, RecursiveFileTree};
-use crate::recursive::Recursive;
+use crate::filetree::{FileTree, RecursiveFileTree};
+use schemes::recursive::Recursive;
 use futures::{future::BoxFuture, FutureExt};
 use regex::Regex;
 use std::{fs::Metadata, path::PathBuf};
@@ -13,20 +13,17 @@ pub struct GrepResult {
     pub matching_lines: Vec<(LineNumber, String)>,
 }
 
-impl RecursiveFileTree {
-    // return vec of grep results, with short circuit
-    pub fn grep<'a>(
-        self,
-        root_dir: PathBuf,
-        regex: &'a Regex,
-    ) -> BoxFuture<'a, std::io::Result<Vec<GrepResult>>> {
-        // println!("grep");
-        let f = self.fold(move |node| {
-            Box::new(move |path| async move { grep_layer(node, path, regex).await }.boxed())
-        });
+// return vec of grep results, with short circuit
+pub fn search<'a>(
+    tree: RecursiveFileTree,
+    root_dir: PathBuf,
+    regex: &'a Regex,
+) -> BoxFuture<'a, std::io::Result<Vec<GrepResult>>> {
+    let f = tree.fold(move |node| {
+        Box::new(move |path| async move { grep_layer(node, path, regex).await }.boxed())
+    });
 
-        f(root_dir)
-    }
+    f(root_dir)
 }
 
 // lazy traversal of filetree with path component
@@ -39,7 +36,6 @@ async fn grep_layer<'a>(
     path: PathBuf,
     regex: &'a Regex,
 ) -> std::io::Result<Vec<GrepResult>> {
-    // println!("grep layer {:?}", path);
     match node {
         FileTree::File(metadata) => {
             let mut matching_lines = Vec::new();

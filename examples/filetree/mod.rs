@@ -1,7 +1,7 @@
-mod build;
-mod grep;
+pub mod build;
+pub mod search;
 
-use crate::recursive::{Functor, Recursive, RecursiveStruct};
+use schemes::recursive::{Functor, Recursive, RecursiveStruct};
 use std::{collections::HashMap, ffi::OsString};
 
 // structure of the file tree with metadata, no file contents, files do not each own their full path b/c that's too much overhead
@@ -47,11 +47,12 @@ impl<'a, A: Copy + 'a, B: 'a> Functor<B> for &'a FileTree<A> {
 
 pub type RecursiveFileTree = RecursiveStruct<FileTree<usize>>;
 
-impl RecursiveFileTree {
-    pub fn depth(&self) -> usize {
-        self.as_ref().fold(|node: FileTreeRef<usize>| match node {
-            FileTreeRef::Dir(depths) => depths.into_iter().map(|(_k, v)| v).max().unwrap_or(0) + 1,
-            _ => 1,
-        })
-    }
+// some utility functions over FileTreeRef, to show how using borrowed data works
+
+/// calculate the depth of a file
+pub fn depth(tree: &RecursiveFileTree) -> usize {
+    tree.as_ref().fold(|node: FileTreeRef<usize>| match node {
+        FileTreeRef::Dir(depths) => depths.into_iter().map(|(_k, v)| v).max().unwrap_or(0) + 1,
+        _ => 1,
+    })
 }

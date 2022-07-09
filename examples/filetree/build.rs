@@ -1,20 +1,20 @@
-use crate::examples::filetree::{FileTree, RecursiveFileTree};
-use crate::recursive::CoRecursiveAsync;
+use crate::filetree::{FileTree, RecursiveFileTree};
+use schemes::recursive::CoRecursiveAsync;
 use futures::FutureExt;
 use std::ffi::OsString;
 use std::{collections::HashMap, path::Path};
 use tokio::fs::DirEntry;
 
-impl RecursiveFileTree {
-    pub async fn build<F: for<'x> Fn(&'x OsString) -> bool + Send + Sync>(
-        root_path: String,
-        filter: &F,
-    ) -> std::io::Result<Self> {
-        Self::unfold_async(None, |dir_entry: Option<DirEntry>| {
-            async { build_layer(&root_path, dir_entry, filter).await }.boxed()
-        })
-        .await
-    }
+
+
+pub async fn build_file_tree<F: for<'x> Fn(&'x OsString) -> bool + Send + Sync>(
+    root_path: String,
+    filter: &F,
+) -> std::io::Result<RecursiveFileTree> {
+    RecursiveFileTree::unfold_async(None, |dir_entry: Option<DirEntry>| {
+        async { build_layer(&root_path, dir_entry, filter).await }.boxed()
+    })
+    .await
 }
 
 async fn build_layer<F: for<'x> Fn(&'x OsString) -> bool + Send + Sync>(
