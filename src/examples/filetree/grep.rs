@@ -1,17 +1,19 @@
 use crate::examples::filetree::{FileTree, RecursiveFileTree};
 use crate::recursive::{Recursive};
 use futures::{future::BoxFuture, FutureExt};
+use regex::Regex;
 use std::{
     fs::Metadata,
     path::{PathBuf},
 };
 
+pub type LineNumber = usize;
 
 #[derive(Debug, Clone)]
 pub struct GrepResult {
     pub path: PathBuf,
     pub metadata: Metadata,
-    pub contents: String,
+    pub matching_lines: Vec<(LineNumber, String)>,
 }
 
 impl RecursiveFileTree {
@@ -19,13 +21,13 @@ impl RecursiveFileTree {
     pub fn grep<'a, F: for<'x> Fn(&'x PathBuf) -> bool + Send + Sync + 'a>(
         self,
         root_dir: PathBuf,
-        substring: &'a str,
+        regex: &'a Regex,
         filter: &'a F,
     ) -> BoxFuture<'a, std::io::Result<Vec<GrepResult>>> {
         println!("grep");
         let f = self.cata(move |node| {
             Box::new(move |path| {
-                async move { alg::<'a, _>(node, path, substring, filter).await }.boxed()
+                async move { grep_layer::<'a, _>(node, path, regex, filter).await }.boxed()
             })
         });
 
@@ -38,20 +40,29 @@ type LazilyTraversableFileTree<'a, Res, Err> =
     FileTree<Box<dyn FnOnce(PathBuf) -> BoxFuture<'a, Result<Res, Err>> + Send + Sync + 'a>>;
 
 // grep a single layer of recursive FileTree structure
-async fn alg<'a, F: for<'x> Fn(&'x PathBuf) -> bool + Send + Sync + 'a>(
+async fn grep_layer<'a, F: for<'x> Fn(&'x PathBuf) -> bool + Send + Sync + 'a>(
     node: LazilyTraversableFileTree<'a, Vec<GrepResult>, std::io::Error>,
     path: PathBuf,
-    substring: &'a str,
+    regex: &'a Regex,
     filter: &'a F,
 ) -> std::io::Result<Vec<GrepResult>> {
     match node {
         FileTree::File(metadata) => {
             let contents = tokio::fs::read_to_string(&path).await?;
-            Ok(if contents.contains(substring) {
+
+            let mut matching_lines = Vec::new();
+
+            for (line_num, line) in contents.lines().enumerate() {
+                if regex.is_match(line) {
+                    matching_lines.push((line_num, line.to_string()));
+                }
+            }
+
+            Ok(if !matching_lines.is_empty() {
                 vec![GrepResult {
                     path,
                     metadata,
-                    contents,
+                    matching_lines,
                 }]
             } else {
                 Vec::new()

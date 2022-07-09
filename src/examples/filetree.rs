@@ -2,17 +2,17 @@ mod build;
 mod grep;
 
 use crate::recursive::{Functor, Recursive, RecursiveStruct};
-use std::collections::HashMap;
+use std::{collections::HashMap, ffi::OsString};
 
 // structure of the file tree with metadata, no file contents, files do not each own their full path b/c that's too much overhead
 pub enum FileTree<A> {
     File(std::fs::Metadata),
-    Dir(HashMap<String, A>),
+    Dir(HashMap<OsString, A>),
 }
 
 pub enum FileTreeRef<'a, A> {
     File(&'a std::fs::Metadata),
-    Dir(HashMap<&'a str, A>),
+    Dir(HashMap<&'a OsString, A>),
 }
 
 impl<A, B> Functor<B> for FileTree<A> {
@@ -38,7 +38,7 @@ impl<'a, A: Copy + 'a, B: 'a> Functor<B> for &'a FileTree<A> {
         match self {
             FileTree::File(x) => FileTreeRef::File(x),
             FileTree::Dir(xs) => {
-                let xs = xs.iter().map(|(k, v)| (&k[..], f(*v))).collect();
+                let xs = xs.iter().map(|(k, v)| (k, f(*v))).collect();
                 FileTreeRef::Dir(xs)
             }
         }

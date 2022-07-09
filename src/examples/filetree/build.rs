@@ -1,6 +1,7 @@
 use crate::examples::filetree::{FileTree, RecursiveFileTree};
 use crate::recursive::CoRecursiveAsync;
 use futures::FutureExt;
+use std::ffi::OsString;
 use std::{collections::HashMap, path::Path};
 use tokio::fs::DirEntry;
 
@@ -13,12 +14,11 @@ impl RecursiveFileTree {
     }
 }
 
-// TODO BETTER NAME LOL
 async fn build_layer(
     root_path: &str,
     maybe_dir_entry: Option<DirEntry>,
 ) -> std::io::Result<FileTree<Option<DirEntry>>> {
-    println!("building file tree, visit: {:?}", maybe_dir_entry);
+    // println!("building file tree, visit: {:?}", maybe_dir_entry);
     match maybe_dir_entry {
         None => {
             let entries = process_dir(root_path).await?;
@@ -39,13 +39,13 @@ async fn build_layer(
     }
 }
 
-async fn process_dir(path: impl AsRef<Path>) -> std::io::Result<HashMap<String, Option<DirEntry>>> {
+async fn process_dir(path: impl AsRef<Path>) -> std::io::Result<HashMap<OsString, Option<DirEntry>>> {
     let mut entries = HashMap::new();
     // root dir special case
     let mut dirs = tokio::fs::read_dir(path).await?;
     while let Some(next) = dirs.next_entry().await? {
         entries.insert(
-            next.file_name().into_string().expect("bad os string"),
+            next.file_name(),
             Some(next),
         );
     }
