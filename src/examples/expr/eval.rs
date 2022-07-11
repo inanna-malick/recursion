@@ -37,7 +37,6 @@ pub async fn eval_async(db: &DB, g: RecursiveExpr) -> Result<i64, String> {
     f.await
 }
 
-#[cfg(test)]
 pub fn naive_eval(db: &HashMap<DBKey, i64>, expr: ExprAST) -> i64 {
     match expr {
         ExprAST::Add(a, b) => naive_eval(db, *a) + naive_eval(db, *b),

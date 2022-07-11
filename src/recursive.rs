@@ -24,6 +24,7 @@ pub struct RecursiveStructRef<'a, F> {
     elems: &'a [F],
 }
 
+// TODO: make O an associated type
 /// Support for recursion - folding a recursive structure into a single seed
 pub trait Recursive<A, O> {
     fn fold<F: FnMut(O) -> A>(self, alg: F) -> A;
@@ -124,11 +125,25 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for Recursi
     }
 }
 
+// TODO: consider using slab instead of vec for underlying RecursiveStruct
+
+// TODO: use noop hasher impl for usize - much much faster, all usizes are unique
+
+// IDEA - take a mutable ref - &mut self, for fold and unfold - could then use vec drain (?) - so then struct is holding ARENA instead of just the elem- 'recursion scheme evaluator type' - could own and reuse hashmap
+// IDEA (cont) - if I'm repeatedly evaluating a cata I could reuse an arena? would have to grow it for each eval - can drop arena each eval and reuse allocation, can amortize to LESS THAN ONE EVAL per fold
+// would use same alloc for fold/unfolds - evaluator struct tied to single <A, O>
+
+// can use slab to impl fused fold/unfold mb - also read impl? it's interesting
+
+// TODO - compile pass over F<slabref> to preserve recursive links
+
 impl<'a, A, O: 'a, U> Recursive<A, O> for RecursiveStructRef<'a, U>
 where
     &'a U: Functor<A, To = O, Unwrapped = usize>,
 {
     fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
+        // TODO: Vec of options - avoid pointer chasing, mb more cache friendly - no linear probing on linked list
+        // TODO: implement benchmarks before implementing this? advice: better to allocate once (Vec) instead - size doesn't matter much - would only hit malloc once, would avoid having to copy each element because guaranteed no vec grow ops at ALL
         let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
 
         for (idx, node) in self.elems.iter().enumerate().rev() {

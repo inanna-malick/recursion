@@ -30,6 +30,7 @@ impl<A, B> Functor<B> for FileTree<A> {
     }
 }
 
+// TODO: name that isn't 'Functor' b/c this isn't a real functor - not idiom matching
 impl<'a, A: Copy + 'a, B: 'a> Functor<B> for &'a FileTree<A> {
     type To = FileTreeRef<'a, B>;
     type Unwrapped = A;
