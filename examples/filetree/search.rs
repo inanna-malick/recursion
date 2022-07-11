@@ -26,6 +26,7 @@ pub fn search(
     f(root_dir)
 }
 
+// TODO: unbox function!
 // lazy traversal of filetree with path component
 type LazilyTraversableFileTree<'a, Res, Err> =
     FileTree<Box<dyn FnOnce(PathBuf) -> BoxFuture<'a, Result<Res, Err>> + Send + Sync + 'a>>;

@@ -1,5 +1,6 @@
 pub mod db;
 pub mod eval;
+pub mod monomorphic;
 pub mod naive;
 
 use crate::examples::expr::db::DBKey;
