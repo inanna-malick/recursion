@@ -28,7 +28,7 @@ pub async fn eval_async(db: &DB, g: RecursiveExpr) -> Result<i64, String> {
         Expr::Mul(a, b) => future::ok(a * b).boxed(),
         Expr::LiteralInt(x) => future::ok(x).boxed(),
         Expr::DatabaseRef(key) => {
-            let f = async move { db.get(&key).await.map_err(|x| x) };
+            let f = async move { db.get(&key).await };
             f.boxed()
         }
     };
