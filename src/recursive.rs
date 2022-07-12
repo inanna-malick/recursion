@@ -129,18 +129,20 @@ where
     &'a U: Functor<A, To = O, Unwrapped = usize>,
 {
     fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
-        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
+        let mut results = std::iter::repeat_with(|| None)
+            .take(self.elems.len())
+            .collect::<Vec<_>>();
 
         for (idx, node) in self.elems.iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it
-                let node = node.fmap(|x| results.remove(&x).expect("node not in result map"));
+                let node = node.fmap(|x| results[x].take().expect("node not in result map"));
                 alg(node)
             };
-            results.insert(idx, alg_res);
+            results[idx] = Some(alg_res);
         }
 
-        results.remove(&0).unwrap()
+        results[0].take().unwrap()
     }
 }
 

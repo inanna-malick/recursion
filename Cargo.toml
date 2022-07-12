@@ -8,10 +8,17 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 futures = "0.3"
+slab = "0.4"
 
 [dev-dependencies]
 clap = {version = "3.2", features = ["derive"]}
 colored = "2"
+criterion = "0.3"
 proptest = "1.0"
 regex = "1"
 tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", "io-util"]}
+
+
+[[bench]]
+name = "expr"
+harness = false
