@@ -136,7 +136,7 @@ where
         for (idx, node) in self.elems.iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it
-                let node = node.fmap(|x| results[x].take().expect("node not in result map"));
+                let node = node.fmap(|x| results[x].take().unwrap());
                 alg(node)
             };
             results[idx] = Some(alg_res);
