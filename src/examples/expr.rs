@@ -22,6 +22,7 @@ impl<A, B> Functor<B> for Expr<A> {
     type To = Expr<B>;
     type Unwrapped = A;
 
+    #[inline(always)]
     fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             Expr::Add(a, b) => Expr::Add(f(a), f(b)),
@@ -29,6 +30,23 @@ impl<A, B> Functor<B> for Expr<A> {
             Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
             Expr::LiteralInt(x) => Expr::LiteralInt(x),
             Expr::DatabaseRef(x) => Expr::DatabaseRef(x),
+        }
+    }
+}
+
+// this is, like, basically fine?
+impl<'a, B: 'a> Functor<B> for &'a Expr<usize> {
+    type To = Expr<B>;
+    type Unwrapped = usize;
+
+    #[inline(always)]
+    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+        match self {
+            Expr::Add(a, b) => Expr::Add(f(*a), f(*b)),
+            Expr::Sub(a, b) => Expr::Sub(f(*a), f(*b)),
+            Expr::Mul(a, b) => Expr::Mul(f(*a), f(*b)),
+            Expr::LiteralInt(x) => Expr::LiteralInt(*x),
+            Expr::DatabaseRef(x) => Expr::DatabaseRef(*x),
         }
     }
 }

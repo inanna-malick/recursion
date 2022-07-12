@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::mem::MaybeUninit;
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
@@ -108,19 +108,30 @@ impl<A, U: Send, O: Functor<usize, Unwrapped = A, To = U>> CoRecursiveAsync<A, O
 }
 
 impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for RecursiveStruct<U> {
+    // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
     fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
-        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
+        let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
+            .take(self.elems.len())
+            .collect::<Vec<_>>();
 
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let alg_res = {
-                // each node is only referenced once so just remove it
-                let node = node.fmap(|x| results.remove(&x).expect("node not in result map"));
+                // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
+                let node = node.fmap(|x| unsafe {
+                    let maybe_uninit =
+                        std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
+                    maybe_uninit.assume_init()
+                });
                 alg(node)
             };
-            results.insert(idx, alg_res);
+            results[idx].write(alg_res);
         }
 
-        results.remove(&0).unwrap()
+        unsafe {
+            let maybe_uninit =
+                std::mem::replace(results.get_unchecked_mut(0), MaybeUninit::uninit());
+            maybe_uninit.assume_init()
+        }
     }
 }
 
@@ -128,19 +139,30 @@ impl<'a, A, O: 'a, U> Recursive<A, O> for RecursiveStructRef<'a, U>
 where
     &'a U: Functor<A, To = O, Unwrapped = usize>,
 {
+    // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
     fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
-        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
+        let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
+            .take(self.elems.len())
+            .collect::<Vec<_>>();
 
         for (idx, node) in self.elems.iter().enumerate().rev() {
             let alg_res = {
-                // each node is only referenced once so just remove it
-                let node = node.fmap(|x| results.remove(&x).expect("node not in result map"));
+                // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
+                let node = node.fmap(|x| unsafe {
+                    let maybe_uninit =
+                        std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
+                    maybe_uninit.assume_init()
+                });
                 alg(node)
             };
-            results.insert(idx, alg_res);
+            results[idx].write(alg_res);
         }
 
-        results.remove(&0).unwrap()
+        unsafe {
+            let maybe_uninit =
+                std::mem::replace(results.get_unchecked_mut(0), MaybeUninit::uninit());
+            maybe_uninit.assume_init()
+        }
     }
 }
 
