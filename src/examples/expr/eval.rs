@@ -6,9 +6,11 @@ use futures::future;
 use futures::FutureExt;
 use std::collections::HashMap;
 
+use crate::examples::expr::naive::{ExprAST};
 #[cfg(test)]
 use crate::examples::expr::naive::arb_expr;
-use crate::examples::expr::naive::{from_ast, ExprAST};
+#[cfg(test)]
+use crate::examples::expr::naive::{from_ast};
 #[cfg(test)]
 use proptest::prelude::*;
 

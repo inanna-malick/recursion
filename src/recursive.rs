@@ -135,14 +135,14 @@ where
 
         for (idx, node) in self.elems.iter().enumerate().rev() {
             let alg_res = {
-                // each node is only referenced once so just remove it
-                let node = node.fmap(|x| results[x].take().unwrap());
+                // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
+                let node = node.fmap(|x| unsafe {results[x].take().unwrap_unchecked()} );
                 alg(node)
             };
             results[idx] = Some(alg_res);
         }
 
-        results[0].take().unwrap()
+        unsafe {results[0].take().unwrap_unchecked()} 
     }
 }
 
@@ -150,6 +150,5 @@ pub trait Functor<B> {
     type Unwrapped;
     type To;
     /// fmap over an owned value
-    #[inline(always)]
     fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To;
 }
