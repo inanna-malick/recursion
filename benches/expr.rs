@@ -30,7 +30,11 @@ fn build_simple_expr2(
 }
 
 fn bench_fib(criterion: &mut Criterion) {
-    // TODO: deliberately fuck up pointer locality
+
+    // build a Big Expression
+
+
+    // TODO: deliberately fuck up pointer locality/
     let a = build_simple_expr();
     let b = build_simple_expr();
     let c = build_simple_expr();
