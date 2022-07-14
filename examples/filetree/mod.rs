@@ -1,7 +1,9 @@
 pub mod build;
 pub mod search;
 
-use schemes::recursive::{Functor, Recursive, RecursiveStruct};
+use schemes::functor::Functor;
+use schemes::recursive::RecursiveStruct;
+use schemes::recursive_traits::Recursive;
 use std::{collections::HashMap, ffi::OsString};
 
 // structure of the file tree with metadata, no file contents, files do not each own their full path b/c that's too much overhead

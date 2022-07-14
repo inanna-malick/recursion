@@ -1,21 +1,23 @@
 use std::collections::HashMap;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, PlotConfiguration, AxisScale};
+use criterion::{
+    criterion_group, criterion_main, AxisScale, BenchmarkId, Criterion, PlotConfiguration,
+};
 use schemes::{
     examples::expr::{
-        eval::{eval, naive_eval},
+        eval::{eval_layer, naive_eval},
         naive::ExprAST,
-        Expr, RecursiveExpr,
+        BlocAllocExpr, DFSStackExpr, Expr,
     },
-    recursive::{CoRecursive, Recursive},
+    recursive_traits::{CoRecursive, Recursive},
 };
 
 fn bench_eval(criterion: &mut Criterion) {
     let mut test_cases = Vec::new();
 
     // build some Big Expressions that are Pointless and Shitty
-    for depth in 8..16 {
-        let big_expr = RecursiveExpr::unfold(depth, |x| {
+    for depth in 10..18 {
+        let big_expr_bloc_alloc = BlocAllocExpr::unfold(depth, |x| {
             if x > 0 {
                 Expr::Add(x - 1, x - 1)
             } else {
@@ -23,34 +25,48 @@ fn bench_eval(criterion: &mut Criterion) {
             }
         });
 
-        let boxed_big_expr = big_expr.as_ref().fold(|n| match n {
+        let big_expr_dfs = DFSStackExpr::unfold(depth, |x| {
+            if x > 0 {
+                Expr::Add(x - 1, x - 1)
+            } else {
+                Expr::LiteralInt(0)
+            }
+        });
+
+        let boxed_big_expr = big_expr_dfs.as_ref().fold(|n| match n {
             Expr::Add(a, b) => Box::new(ExprAST::Add(a, b)),
             Expr::LiteralInt(x) => Box::new(ExprAST::LiteralInt(x)),
             _ => unreachable!(),
         });
 
-        test_cases.push((depth, big_expr, boxed_big_expr));
+
+        // println!("heap size for depth {}: dfs {}", big_expr_dfs.len);
+
+        test_cases.push((depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr));
     }
 
-    let h = HashMap::new();
+
 
     let mut group = criterion.benchmark_group("eval");
 
-    let plot_config = PlotConfiguration::default()
-        .summary_scale(AxisScale::Logarithmic);
-    group.plot_config(plot_config);
+    // let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
+    // group.plot_config(plot_config);
 
-    for (depth, big_expr, boxed_big_expr) in test_cases.into_iter() {
-        let elem_count = 2_usize.pow(depth);
+    for (depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr) in test_cases.into_iter() {
         group.bench_with_input(
-            BenchmarkId::new("boxed", elem_count),
+            BenchmarkId::new("boxed", depth),
             &boxed_big_expr,
-            |b, expr|  b.iter(|| naive_eval(&h, &expr)),
+            |b, expr| b.iter(|| naive_eval(&expr)),
         );
         group.bench_with_input(
-            BenchmarkId::new("fold", elem_count),
-            &big_expr,
-            |b, expr| b.iter(|| eval(&h, expr)),
+            BenchmarkId::new("fold bloc alloc", depth),
+            &big_expr_bloc_alloc,
+            |b, expr| b.iter(|| expr.as_ref().fold(eval_layer)),
+        );
+        group.bench_with_input(
+            BenchmarkId::new("fold dfs stack", depth),
+            &big_expr_dfs,
+            |b, expr| b.iter(|| expr.as_ref().fold(eval_layer)),
         );
     }
     group.finish();
