@@ -54,16 +54,20 @@ pub fn naive_eval(db: &HashMap<DBKey, i64>, expr: &ExprAST) -> i64 {
 #[cfg(test)]
 proptest! {
     #[test]
-    fn expr_eval((expr, db_state) in arb_expr()) {
+    fn expr_eval(expr in arb_expr()) {
+        let db_state = HashMap::new();
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let expr = Box::new(expr);
         let simple = naive_eval(&db_state, &expr);
         let complex = eval(&db_state, &from_ast(expr.clone()));
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let async_complex = rt.block_on(eval_async(&DB::init(db_state), from_ast(expr))).unwrap();
+        // let rt = tokio::runtime::Runtime::new().unwrap();
+        // let async_complex = rt.block_on(eval_async(&DB::init(db_state), from_ast(expr))).unwrap();
 
         assert_eq!(simple, complex);
-        assert_eq!(simple, async_complex);
+        // assert_eq!(simple, async_complex);
+
     }
 }
+
+// TODO: compare this to u32 version of code, Expr<u32>, rename unfold to generate

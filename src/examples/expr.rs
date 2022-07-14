@@ -36,9 +36,9 @@ impl<A, B> Functor<B> for Expr<A> {
 }
 
 // this is, like, basically fine?
-impl<'a, B: 'a> Functor<B> for &'a Expr<usize> {
+impl<'a, B: 'a> Functor<B> for &'a Expr<()> {
     type To = Expr<B>;
-    type Unwrapped = usize;
+    type Unwrapped = ();
 
     #[inline(always)]
     fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
@@ -52,7 +52,7 @@ impl<'a, B: 'a> Functor<B> for &'a Expr<usize> {
     }
 }
 
-pub type RecursiveExpr = RecursiveStruct<Expr<usize>>;
+pub type RecursiveExpr = RecursiveStruct<Expr<()>>;
 
 impl RecursiveExpr {
     /// build a parallel execution graph from a recursive expr and an algebra

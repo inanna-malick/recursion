@@ -42,10 +42,10 @@ impl ExprAST {
 }
 
 #[cfg(test)]
-pub fn arb_expr() -> impl Strategy<Value = (ExprAST, HashMap<DBKey, i64>)> {
+pub fn arb_expr() -> impl Strategy<Value = ExprAST> {
     let leaf = prop_oneof![
         any::<i8>().prop_map(|x| ExprAST::LiteralInt(x as i64)),
-        any::<u32>().prop_map(|u| ExprAST::DatabaseRef(DBKey(u)))
+        // any::<u32>().prop_map(|u| ExprAST::DatabaseRef(DBKey(u)))
     ];
     let expr = leaf.prop_recursive(
         8,   // 8 levels deep
@@ -62,15 +62,16 @@ pub fn arb_expr() -> impl Strategy<Value = (ExprAST, HashMap<DBKey, i64>)> {
         },
     );
 
-    expr.prop_flat_map(|e| {
-        let db = e
-            .keys()
-            .into_iter()
-            .map(|k| any::<i8>().prop_map(move |v| (k, v as i64)))
-            .collect::<Vec<_>>()
-            .prop_map(|kvs| kvs.into_iter().collect::<HashMap<DBKey, i64>>());
+    // expr.prop_flat_map(|e| {
+    //     let db = e
+    //         .keys()
+    //         .into_iter()
+    //         .map(|k| any::<i8>().prop_map(move |v| (k, v as i64)))
+    //         .collect::<Vec<_>>()
+    //         .prop_map(|kvs| kvs.into_iter().collect::<HashMap<DBKey, i64>>());
 
-        // fixme remove clone
-        db.prop_map(move |db| (e.clone(), db))
-    })
+    //     // fixme remove clone
+    //     db.prop_map(move |db| (e.clone(), db))
+    // })
+    expr
 }

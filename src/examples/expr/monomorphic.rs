@@ -75,9 +75,18 @@ pub enum Expr<A> {
     Mul { a: A, b: A },
     LiteralInt { literal: i64 },
 }
+
+#[derive(Eq, Hash, PartialEq)]
+pub struct ExprIdx(usize);
+impl ExprIdx {
+    fn head() -> Self {
+        ExprIdx(0)
+    }
+}
+
 pub struct RecursiveExpr {
     // nonempty, in topological-sorted order. for every node `n`, all of `n`'s child nodes have vec indices greater than that of n
-    elems: Vec<Expr<usize>>,
+    elems: Vec<Expr<ExprIdx>>,
 }
 
 // we're also going to define a function to map from one type of Expr to another, for convenience - nothing complex, it just applies a function to each 'A', sort of like mapping over an Option or an Iterator
@@ -114,7 +123,7 @@ impl RecursiveExpr {
             let node = node.map(|aa| {
                 frontier.push_back(aa);
                 // idx of pointed-to element determined from frontier + elems size
-                elems.len() + frontier.len()
+                ExprIdx(elems.len() + frontier.len())
             });
 
             elems.push(node);
@@ -135,9 +144,10 @@ impl RecursiveExpr {
 
 impl RecursiveExpr {
     fn eval_inline(self) -> i64 {
-        let mut results: HashMap<usize, i64> = HashMap::with_capacity(self.elems.len());
+        let mut results: HashMap<ExprIdx, i64> = HashMap::with_capacity(self.elems.len());
 
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
+            let idx = ExprIdx(idx);
             // each node is only referenced once so just remove it
             let node = node.map(|x| results.remove(&x).expect("node not in result map"));
             let alg_res = match node {
@@ -149,7 +159,7 @@ impl RecursiveExpr {
             results.insert(idx, alg_res);
         }
 
-        results.remove(&0).unwrap()
+        results.remove(&ExprIdx::head()).unwrap()
     }
 }
 
@@ -159,29 +169,35 @@ impl RecursiveExpr {
 // ok, still not elegant. Once again, the logic of _how_ we fold layers of recursive structure (Expr<i64>) into a single value (i64)
 // is interleaved with a bunch of boilerplate that handles the actual mechanics of recursion.
 
-
 // RECURSION SCHEMES
 
 // The key idea here, which is taken entirely from recursion schemes, is to _separate_ the mechanism of recursion from the logic of recursion.
 // Let's see what that looks like:
 
 impl RecursiveExpr {
-    fn fold<A, F: FnMut(Expr<A>) -> A>(self, mut alg: F) -> A {
-        let mut results: HashMap<usize, A> = HashMap::with_capacity(self.elems.len());
+    fn fold<A: std::fmt::Debug, F: FnMut(Expr<A>) -> A>(self, mut alg: F) -> A {
+        let max_idx = self.elems.len() - 1;
+        let mut results: Vec<Option<A>> = Vec::with_capacity(max_idx);
 
-        for (idx, node) in self.elems.into_iter().enumerate().rev() {
+        for node in self.elems.into_iter().rev() {
             // each node is only referenced once so just remove it
-            let node = node.map(|x| results.remove(&x).expect("node not in result map"));
+            let node = node.map(|x| {
+                let idx = max_idx - x.0;
+                println!(
+                    "get idx: {}, maxidx: {}, results vec: {:?}",
+                    x.0, max_idx, results
+                );
+                results[idx].take().expect(&format!("idx: {}", x.0))
+            });
             let alg_res = alg(node);
-            results.insert(idx, alg_res);
+            results.push(Some(alg_res));
         }
 
-        results.remove(&0).unwrap()
+        results[max_idx].take().unwrap()
     }
 }
 
-
-// First, we have a generic representation of folding some structure into a single value - instead of folding an Expr<i64> into a single i64, 
+// First, we have a generic representation of folding some structure into a single value - instead of folding an Expr<i64> into a single i64,
 // we fold some Expr<A> into an A. The code looks pretty much the same as eval_inline, but it lets us factor out the mechanism of recursion.
 
 impl RecursiveExpr {
@@ -212,7 +228,7 @@ impl RecursiveExpr {
             let node = node.map(|aa| {
                 frontier.push_back(aa);
                 // idx of pointed-to element determined from frontier + elems size
-                elems.len() + frontier.len()
+                ExprIdx(elems.len() + frontier.len())
             });
 
             elems.push(node);
@@ -222,14 +238,12 @@ impl RecursiveExpr {
     }
 }
 
-// Second, we have a generic representation of unfolding some structure from a single value - instead of unfolding 
+// Second, we have a generic representation of unfolding some structure from a single value - instead of unfolding
 // a single layer of Expr<&ExprBoxed> structure from an &ExprBoxed seed value,
 // we unfold some A into an Expr<A>. As with fold, the code looks pretty much the same as from_ast_inline, just with the
 // specific unfold logic factored out
 
-
 impl RecursiveExpr {
-
     pub fn from_ast(ast: &ExprBoxed) -> Self {
         Self::unfold(ast, |seed| match seed {
             ExprBoxed::Add { a, b } => Expr::Add { a, b },
@@ -251,9 +265,7 @@ impl RecursiveExpr {
 // This actually helped me find a bug!
 // NOTE: this helped me find one serious bug in fold, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
 
-
 // NOTE: not sure where to go from here, but this is blog post one in a series, definitely. maybe end here, with a promise of showing how to do cool async stuff
-
 
 // generate a bunch of expression trees and evaluate them via each method
 #[cfg(test)]

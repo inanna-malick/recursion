@@ -50,23 +50,35 @@ pub trait CoRecursiveAsync<A, O> {
         A: Send + 'a;
 }
 
-impl<A, U, O: Functor<usize, Unwrapped = A, To = U>> CoRecursive<A, O> for RecursiveStruct<U> {
+// HOLY SHIT: if I build this with a DFS I can use, like, a simple stack to keep track of things
+//            like, each eval phase just pops some elements, EXACT OPPOSITE ARROWS OF CONSTRUCTION
+// haha nice nice nice nice nice - will just need to change impl here to push and keep it working,
+// can impl pop-based situation next. wait, holy shit, if it just runs pop I can have a vec of Expr<()>
+// NOTE: adds hard requirement, functor traversal order MUST be constant. woah.
+impl<A, U, O: Functor<(), Unwrapped = A, To = U>> CoRecursive<A, O> for RecursiveStruct<U> {
     fn unfold<F: Fn(A) -> O>(a: A, coalg: F) -> Self {
-        let mut frontier = VecDeque::from([a]);
+        let mut frontier = Vec::from([a]);
         let mut elems = vec![];
 
         // unfold to build a vec of elems while preserving topo order
-        while let Some(seed) = frontier.pop_front() {
+        while let Some(seed) = frontier.pop() {
             let node = coalg(seed);
 
+            let mut topush = Vec::new();
+
             let node = node.fmap(|aa| {
-                frontier.push_back(aa);
-                // idx of pointed-to element determined from frontier + elems size
-                elems.len() + frontier.len()
+                topush.push(aa);
+                // just need a marker lmao what the FUCK this is madness
+                // NOTE: can _entirely replace_ functor with a trait that maps from/to () form
+                ()
             });
+
+            frontier.extend(topush.into_iter().rev());
 
             elems.push(node);
         }
+
+        elems.reverse();
 
         Self { elems }
     }
@@ -108,31 +120,21 @@ impl<A, U: Send, O: Functor<usize, Unwrapped = A, To = U>> CoRecursiveAsync<A, O
     }
 }
 
-impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for RecursiveStruct<U> {
-    // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
+impl<A, O, U: Functor<A, To = O, Unwrapped = ()>> Recursive<A, O> for RecursiveStruct<U> {
     fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
-        let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
-            .take(self.elems.len())
-            .collect::<Vec<_>>();
+        let mut result_stack = Vec::new();
 
-        for (idx, node) in self.elems.into_iter().enumerate().rev() {
+        for node in self.elems.into_iter().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
-                let node = node.fmap(|x| unsafe {
-                    let maybe_uninit =
-                        std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
-                    maybe_uninit.assume_init()
-                });
+                let node = node.fmap(|_| result_stack.pop().unwrap());
+
                 alg(node)
             };
-            results[idx].write(alg_res);
+            result_stack.push(alg_res);
         }
 
-        unsafe {
-            let maybe_uninit =
-                std::mem::replace(results.get_unchecked_mut(0), MaybeUninit::uninit());
-            maybe_uninit.assume_init()
-        }
+        result_stack.pop().unwrap()
     }
 }
 
@@ -148,34 +150,24 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = usize>> Recursive<A, O> for Recursi
 
 // TODO - compile pass over F<slabref> to preserve recursive links
 
-impl<'a, A, O: 'a, U> Recursive<A, O> for RecursiveStructRef<'a, U>
+impl<'a, A: std::fmt::Debug, O: 'a, U: std::fmt::Debug> Recursive<A, O>
+    for RecursiveStructRef<'a, U>
 where
-    &'a U: Functor<A, To = O, Unwrapped = usize>,
+    &'a U: Functor<A, To = O, Unwrapped = ()>,
 {
-    // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
     fn fold<F: FnMut(O) -> A>(self, mut alg: F) -> A {
-        let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
-            .take(self.elems.len())
-            .collect::<Vec<_>>();
+        let mut result_stack = Vec::with_capacity(32);
 
-        for (idx, node) in self.elems.iter().enumerate().rev() {
-            let alg_res = {
-                // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
-                let node = node.fmap(|x| unsafe {
-                    let maybe_uninit =
-                        std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
-                    maybe_uninit.assume_init()
-                });
-                alg(node)
-            };
-            results[idx].write(alg_res);
+        for node in self.elems.iter() {
+            // if result_stack.len() > 4 {
+            //     panic!("stack: {:?}", result_stack);
+            // }
+            let node = node.fmap(|_| unsafe { result_stack.pop().unwrap_unchecked() });
+
+            result_stack.push(alg(node));
         }
 
-        unsafe {
-            let maybe_uninit =
-                std::mem::replace(results.get_unchecked_mut(0), MaybeUninit::uninit());
-            maybe_uninit.assume_init()
-        }
+        unsafe { result_stack.pop().unwrap_unchecked() }
     }
 }
 
