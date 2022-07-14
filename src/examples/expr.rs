@@ -1,4 +1,5 @@
 pub mod eval;
+pub mod monomorphic;
 pub mod naive;
 
 use crate::functor::Functor;
