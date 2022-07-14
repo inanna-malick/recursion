@@ -14,7 +14,7 @@ fn bench_eval(criterion: &mut Criterion) {
     let mut test_cases = Vec::new();
 
     // build some Big Expressions that are Pointless and Shitty
-    for depth in 0..18 {
+    for depth in 8..16 {
         let big_expr = RecursiveExpr::unfold(depth, |x| {
             if x > 0 {
                 Expr::Add(x - 1, x - 1)
