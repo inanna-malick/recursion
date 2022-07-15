@@ -1,3 +1,5 @@
+use std::{collections::HashMap, hash::Hash};
+
 use crate::{
     functor::Functor,
     recursive_traits::{CoRecursive, Recursive},
@@ -41,8 +43,6 @@ impl<A, U, O: Functor<(), Unwrapped = A, To = U>> CoRecursive<A, O> for Recursiv
 
             let node = node.fmap(|aa| {
                 topush.push(aa);
-                // just need a marker lmao what the FUCK this is madness
-                // NOTE: can _entirely replace_ functor with a trait that maps from/to () form
                 ()
             });
 
@@ -75,6 +75,99 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = ()>> Recursive<A, O> for RecursiveS
     }
 }
 
+pub fn unfold_and_fold_result<
+    E,
+    Seed,
+    Out,
+    GenerateExpr: Functor<(), Unwrapped = Seed, To = U>,
+    ConsumeExpr,
+    U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,
+    Alg: FnMut(ConsumeExpr) -> Result<Out, E>,
+    CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,
+>(
+    seed: Seed,
+    coalg: CoAlg,
+    mut alg: Alg,
+) -> Result<Out, E> {
+    enum State<Pre, Post> {
+        PreVisit(Pre),
+        PostVisit(Post),
+    }
+
+    let mut vals: Vec<Out> = vec![];
+    let mut todo: Vec<State<_, _>> = vec![State::PreVisit(seed)];
+
+    while let Some(item) = todo.pop() {
+        match item {
+            State::PreVisit(seed) => {
+                let node = coalg(seed)?;
+
+                let mut topush = Vec::new();
+
+                let node = node.fmap(|seed| {
+                    topush.push(State::PreVisit(seed));
+                    ()
+                });
+
+                todo.push(State::PostVisit(node));
+
+                todo.extend(topush.into_iter());
+            }
+            State::PostVisit(node) => {
+                let node = node.fmap(|_: ()| vals.pop().unwrap());
+                vals.push(alg(node)?)
+            }
+        };
+    }
+    Ok(vals.pop().unwrap())
+}
+
+pub fn unfold_and_fold<
+    Seed,
+    Out,
+    GenerateExpr: Functor<(), Unwrapped = Seed, To = U>,
+    ConsumeExpr,
+    U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,
+    Alg: FnMut(ConsumeExpr) -> Out,
+    CoAlg: Fn(Seed) -> GenerateExpr,
+>(
+    seed: Seed,
+    coalg: CoAlg,
+    mut alg: Alg,
+) -> Out {
+    enum State<Pre, Post> {
+        PreVisit(Pre),
+        PostVisit(Post),
+    }
+
+    let mut vals: Vec<Out> = vec![];
+    let mut todo: Vec<State<_, _>> = vec![State::PreVisit(seed)];
+
+    while let Some(item) = todo.pop() {
+        match item {
+            State::PreVisit(seed) => {
+                let node = coalg(seed);
+
+                let mut topush = Vec::new();
+
+                let node = node.fmap(|seed| {
+                    topush.push(State::PreVisit(seed));
+                    ()
+                });
+
+                todo.push(State::PostVisit(node));
+
+                todo.extend(topush.into_iter());
+            }
+            State::PostVisit(node) => {
+                let node = node.fmap(|_: ()| vals.pop().unwrap());
+                vals.push(alg(node))
+            }
+        };
+    }
+    vals.pop().unwrap()
+}
+
 // TODO: consider using slab instead of vec for underlying RecursiveStruct
 
 // TODO: use noop hasher impl for usize - much much faster, all usizes are unique
@@ -96,9 +189,6 @@ where
         let mut result_stack = Vec::with_capacity(32);
 
         for node in self.elems.iter() {
-            // if result_stack.len() > 4 {
-            //     panic!("stack: {:?}", result_stack);
-            // }
             let node = node.fmap(|_| unsafe { result_stack.pop().unwrap_unchecked() });
 
             result_stack.push(alg(node));
