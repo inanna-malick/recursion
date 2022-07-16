@@ -1,5 +1,3 @@
-use std::{collections::HashMap, hash::Hash};
-
 use crate::{
     functor::Functor,
     recursive_traits::{CoRecursive, Recursive},
@@ -75,15 +73,17 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = ()>> Recursive<A, O> for RecursiveS
     }
 }
 
+
 pub fn unfold_and_fold_result<
+    // F, a type parameter of kind * -> * that cannot be represented in rust
     E,
     Seed,
     Out,
-    GenerateExpr: Functor<(), Unwrapped = Seed, To = U>,
-    ConsumeExpr,
-    U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,
-    Alg: FnMut(ConsumeExpr) -> Result<Out, E>,
-    CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,
+    GenerateExpr: Functor<(), Unwrapped = Seed, To = U>, // F<Seed>
+    ConsumeExpr,                                         // F<Out>
+    U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<U>
+    Alg: FnMut(ConsumeExpr) -> Result<Out, E>,           // F<Out> -> Result<Out, E>
+    CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,          // Seed -> Result<F<Seed>, E>
 >(
     seed: Seed,
     coalg: CoAlg,
@@ -95,7 +95,7 @@ pub fn unfold_and_fold_result<
     }
 
     let mut vals: Vec<Out> = vec![];
-    let mut todo: Vec<State<_, _>> = vec![State::PreVisit(seed)];
+    let mut todo: Vec<State<Seed, U>> = vec![State::PreVisit(seed)];
 
     while let Some(item) = todo.pop() {
         match item {
