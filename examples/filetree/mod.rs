@@ -2,8 +2,8 @@ pub mod build;
 pub mod search;
 
 use schemes::functor::Functor;
-use schemes::recursive::Recursive;
-use schemes::recursive_block_alloc::RecursiveStruct;
+use schemes::recursive::Foldable;
+use schemes::recursive_tree::RecursiveTree;
 use std::{collections::HashMap, ffi::OsString};
 
 // structure of the file tree with metadata, no file contents, files do not each own their full path b/c that's too much overhead
@@ -47,7 +47,7 @@ impl<'a, A: Copy + 'a, B: 'a> Functor<B> for &'a FileTree<A> {
     }
 }
 
-pub type RecursiveFileTree = RecursiveStruct<FileTree<usize>>;
+pub type RecursiveFileTree = RecursiveTree<FileTree<usize>, usize>;
 
 // some utility functions over FileTreeRef, to show how using borrowed data works
 

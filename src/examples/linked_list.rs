@@ -1,6 +1,6 @@
 use crate::functor::Functor;
-use crate::recursive::{CoRecursive, Recursive};
-use crate::recursive_block_alloc::RecursiveStruct;
+use crate::recursive::{Foldable, Generatable};
+use crate::recursive_tree::RecursiveTree;
 
 /// A linked list of characters. Not good or idiomatic, but it provides a nice minimal example
 #[derive(Debug, Clone, Copy)]
@@ -21,10 +21,10 @@ impl<A, B> Functor<B> for CharLinkedList<A> {
     }
 }
 
-pub type RecursiveString = RecursiveStruct<CharLinkedList<usize>>;
+pub type RecursiveString = RecursiveTree<CharLinkedList<usize>, usize>;
 
 pub fn from_str(s: &str) -> RecursiveString {
-    RecursiveString::unfold(s.chars(), |mut it| {
+    RecursiveString::generate_layer(s.chars(), |mut it| {
         if let Some(c) = it.next() {
             CharLinkedList::Cons(c, it)
         } else {

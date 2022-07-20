@@ -2,12 +2,12 @@ use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::functor::Functor;
-use crate::recursive_dfs::{unfold_and_fold, unfold_and_fold_result};
+use crate::stack_machine_lazy::{unfold_and_fold, unfold_and_fold_result};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
     examples::expr::{BlocAllocExpr, DFSStackExpr},
-    recursive::{CoRecursive, Recursive},
+    recursive::{Foldable, Generatable},
 };
 #[cfg(test)]
 use proptest::prelude::*;
@@ -103,8 +103,8 @@ proptest! {
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let expr = expr;
         let simple = naive_eval(&expr);
-        let dfs_stack_eval = DFSStackExpr::unfold(&expr, generate_layer).fold(eval_layer);
-        let bloc_alloc_eval = BlocAllocExpr::unfold(&expr, generate_layer).fold(eval_layer);
+        let dfs_stack_eval = DFSStackExpr::generate_layer(&expr, generate_layer).fold(eval_layer);
+        let bloc_alloc_eval = BlocAllocExpr::generate_layer(&expr, generate_layer).fold(eval_layer);
         let lazy_stack_eval = eval_lazy(&expr);
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
 

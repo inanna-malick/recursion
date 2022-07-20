@@ -5,7 +5,7 @@ use schemes::{
         naive::ExprAST,
         BlocAllocExpr, DFSStackExpr, Expr,
     },
-    recursive::{CoRecursive, Recursive},
+    recursive::{Foldable, Generatable},
 };
 
 fn bench_eval(criterion: &mut Criterion) {
@@ -13,7 +13,7 @@ fn bench_eval(criterion: &mut Criterion) {
 
     // build some Big Expressions that are Pointless and Shitty
     for depth in 17..18 {
-        let big_expr_bloc_alloc = BlocAllocExpr::unfold(depth, |x| {
+        let big_expr_bloc_alloc = BlocAllocExpr::generate_layer(depth, |x| {
             if x > 0 {
                 Expr::Add(x - 1, x - 1)
             } else {
@@ -21,7 +21,7 @@ fn bench_eval(criterion: &mut Criterion) {
             }
         });
 
-        let big_expr_dfs = DFSStackExpr::unfold(depth, |x| {
+        let big_expr_dfs = DFSStackExpr::generate_layer(depth, |x| {
             if x > 0 {
                 Expr::Add(x - 1, x - 1)
             } else {
