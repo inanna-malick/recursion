@@ -1,6 +1,6 @@
 #[cfg(test)]
 use proptest::prelude::*;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 // for blog post
 // start with some examples of structures that are best represented as recursive
@@ -133,7 +133,7 @@ impl Expr {
 }
 
 impl Expr {
-    fn generate_from_boxed_with_map(seed: &ExprBoxed) -> Self {
+    fn generate_from_boxed_with_fmap(seed: &ExprBoxed) -> Self {
         let mut frontier: VecDeque<&ExprBoxed> = VecDeque::from([seed]);
         let mut elems = vec![];
 
@@ -171,11 +171,11 @@ impl Expr {
     fn eval_inline(self) -> i64 {
         use std::mem::MaybeUninit;
 
-        let mut results = std::iter::repeat_with(|| MaybeUninit::<i64>::uninit())
+        let mut results = std::iter::repeat_with(MaybeUninit::<i64>::uninit)
             .take(self.elems.len())
             .collect::<Vec<_>>();
 
-        fn get_result_unsafe(results: &mut Vec<MaybeUninit<i64>>, idx: ExprIdx) -> i64 {
+        fn get_result_unsafe(results: &mut [MaybeUninit<i64>], idx: ExprIdx) -> i64 {
             unsafe {
                 let maybe_uninit =
                     std::mem::replace(results.get_unchecked_mut(idx.0), MaybeUninit::uninit());
@@ -216,7 +216,6 @@ impl Expr {
     }
 }
 
-// NOTE NOTE NOTE: introduce fmap FIRST, show how it can reduce duplicated code
 impl<A> ExprLayer<A> {
     #[inline(always)]
     fn map<B, F: FnMut(A) -> B>(self, mut f: F) -> ExprLayer<B> {
@@ -233,17 +232,9 @@ impl Expr {
     fn eval_inline_fmap(self) -> i64 {
         use std::mem::MaybeUninit;
 
-        let mut results = std::iter::repeat_with(|| MaybeUninit::<i64>::uninit())
+        let mut results = std::iter::repeat_with(MaybeUninit::<i64>::uninit)
             .take(self.elems.len())
             .collect::<Vec<_>>();
-
-        fn get_result_unsafe(results: &mut Vec<MaybeUninit<i64>>, idx: ExprIdx) -> i64 {
-            unsafe {
-                let maybe_uninit =
-                    std::mem::replace(results.get_unchecked_mut(idx.0), MaybeUninit::uninit());
-                maybe_uninit.assume_init()
-            }
-        }
 
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let node = node.map(|idx| unsafe {
@@ -376,10 +367,12 @@ proptest! {
         let eval_boxed = boxed_expr.eval();
 
         let eval_inlined = Expr::generate_from_boxed_inline(&boxed_expr).eval_inline();
+        let eval_inlined_fmap = Expr::generate_from_boxed_with_fmap(&boxed_expr).eval_inline_fmap();
         let eval_via_fold = Expr::generate_from_boxed(&boxed_expr).eval();
 
         assert_eq!(eval_boxed, eval_inlined);
-        assert_eq!(eval_inlined, eval_via_fold);
+        assert_eq!(eval_boxed, eval_inlined_fmap);
+        assert_eq!(eval_boxed, eval_via_fold);
     }
 }
 

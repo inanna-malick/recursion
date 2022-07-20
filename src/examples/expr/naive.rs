@@ -11,12 +11,12 @@ pub enum ExprAST {
     LiteralInt(i64),
 }
 
-pub fn generate_layer(x: Box<ExprAST>) -> Expr<Box<ExprAST>> {
-    match *x {
+pub fn generate_layer(x: &ExprAST) -> Expr<&ExprAST> {
+    match x {
         ExprAST::Add(a, b) => Expr::Add(a, b),
         ExprAST::Sub(a, b) => Expr::Sub(a, b),
         ExprAST::Mul(a, b) => Expr::Mul(a, b),
-        ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
+        ExprAST::LiteralInt(x) => Expr::LiteralInt(*x),
     }
 }
 

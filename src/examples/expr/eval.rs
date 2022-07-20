@@ -1,14 +1,14 @@
-use std::fmt::DebugSet;
-
 use crate::examples::expr::Expr;
-use crate::examples::expr::{BlocAllocExpr, DFSStackExpr};
 
-#[cfg(test)]
-use crate::examples::expr::naive::arb_expr;
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::functor::Functor;
 use crate::recursive_dfs::{unfold_and_fold, unfold_and_fold_result};
-use crate::recursive_traits::{CoRecursive, Recursive};
+#[cfg(test)]
+use crate::{
+    examples::expr::naive::arb_expr,
+    examples::expr::{BlocAllocExpr, DFSStackExpr},
+    recursive::{CoRecursive, Recursive},
+};
 #[cfg(test)]
 use proptest::prelude::*;
 
@@ -38,7 +38,7 @@ impl<A, B> Functor<B> for CompiledExpr<A> {
 
 type CompileError = &'static str;
 
-pub fn eval_lazy_with_fused_compile(expr: Box<ExprAST>) -> Result<i64, CompileError> {
+pub fn eval_lazy_with_fused_compile(expr: &ExprAST) -> Result<i64, CompileError> {
     unfold_and_fold_result(
         expr,
         |seed| compile(generate_layer(seed)),
@@ -91,7 +91,7 @@ pub fn naive_eval(expr: &ExprAST) -> i64 {
     }
 }
 
-pub fn eval_lazy(expr: Box<ExprAST>) -> i64 {
+pub fn eval_lazy(expr: &ExprAST) -> i64 {
     unfold_and_fold(expr, generate_layer, eval_layer)
 }
 
@@ -101,11 +101,11 @@ proptest! {
     #[test]
     fn expr_eval(expr in arb_expr()) {
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
-        let expr = Box::new(expr);
+        let expr = expr;
         let simple = naive_eval(&expr);
-        let dfs_stack_eval = DFSStackExpr::unfold(expr.clone(), generate_layer).fold(eval_layer);
-        let bloc_alloc_eval = BlocAllocExpr::unfold(expr.clone(), generate_layer).fold(eval_layer);
-        let lazy_stack_eval = eval_lazy(expr.clone());
+        let dfs_stack_eval = DFSStackExpr::unfold(&expr, generate_layer).fold(eval_layer);
+        let bloc_alloc_eval = BlocAllocExpr::unfold(&expr, generate_layer).fold(eval_layer);
+        let lazy_stack_eval = eval_lazy(&expr);
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
 
 

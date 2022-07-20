@@ -1,22 +1,18 @@
-use std::collections::HashMap;
-
-use criterion::{
-    criterion_group, criterion_main, AxisScale, BenchmarkId, Criterion, PlotConfiguration,
-};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use schemes::{
     examples::expr::{
-        eval::{eval_layer, naive_eval},
+        eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
         naive::ExprAST,
         BlocAllocExpr, DFSStackExpr, Expr,
     },
-    recursive_traits::{CoRecursive, Recursive},
+    recursive::{CoRecursive, Recursive},
 };
 
 fn bench_eval(criterion: &mut Criterion) {
     let mut test_cases = Vec::new();
 
     // build some Big Expressions that are Pointless and Shitty
-    for depth in 10..18 {
+    for depth in 17..18 {
         let big_expr_bloc_alloc = BlocAllocExpr::unfold(depth, |x| {
             if x > 0 {
                 Expr::Add(x - 1, x - 1)
@@ -44,19 +40,19 @@ fn bench_eval(criterion: &mut Criterion) {
         test_cases.push((depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr));
     }
 
-    let mut group = criterion.benchmark_group("eval");
+    let mut group = criterion.benchmark_group("evaluate expression tree");
 
     // let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
     // group.plot_config(plot_config);
 
     for (depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr) in test_cases.into_iter() {
         group.bench_with_input(
-            BenchmarkId::new("boxed", depth),
+            BenchmarkId::new("traditional boxed method", depth),
             &boxed_big_expr,
-            |b, expr| b.iter(|| naive_eval(&expr)),
+            |b, expr| b.iter(|| naive_eval(expr)),
         );
         group.bench_with_input(
-            BenchmarkId::new("fold bloc alloc", depth),
+            BenchmarkId::new("my new fold method", depth),
             &big_expr_bloc_alloc,
             |b, expr| b.iter(|| expr.as_ref().fold(eval_layer)),
         );
@@ -64,6 +60,16 @@ fn bench_eval(criterion: &mut Criterion) {
             BenchmarkId::new("fold dfs stack", depth),
             &big_expr_dfs,
             |b, expr| b.iter(|| expr.as_ref().fold(eval_layer)),
+        );
+        group.bench_with_input(
+            BenchmarkId::new("fold stack_machine lazy", depth),
+            &boxed_big_expr,
+            |b, expr| b.iter(|| eval_lazy(expr)),
+        );
+        group.bench_with_input(
+            BenchmarkId::new("fold stack_machine lazy with fused compile", depth),
+            &boxed_big_expr,
+            |b, expr| b.iter(|| eval_lazy_with_fused_compile(expr)),
         );
     }
     group.finish();

@@ -1,5 +1,8 @@
-pub mod examples;
 pub mod functor;
 pub mod recursive;
+pub mod recursive_block_alloc;
 pub mod recursive_dfs;
-pub mod recursive_traits;
+
+// using cfg flag to make expr examples available in a benchmark context
+#[cfg(any(test, feature = "expr_example"))]
+pub mod examples;

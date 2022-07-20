@@ -1,7 +1,7 @@
 use crate::filetree::{FileTree, RecursiveFileTree};
 use futures::{future::BoxFuture, FutureExt};
 use regex::Regex;
-use schemes::recursive_traits::Recursive;
+use schemes::recursive::Recursive;
 use std::{fs::Metadata, path::PathBuf};
 
 pub type LineNumber = usize;

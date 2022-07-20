@@ -1,4 +1,5 @@
 pub mod eval;
+#[cfg(test)]
 pub mod monomorphic;
 pub mod naive;
 
@@ -45,4 +46,4 @@ impl<'a, A: Copy, B: 'a> Functor<B> for &'a Expr<A> {
 }
 
 pub type DFSStackExpr = crate::recursive_dfs::RecursiveStruct<Expr<()>>;
-pub type BlocAllocExpr = crate::recursive::RecursiveStruct<Expr<usize>>;
+pub type BlocAllocExpr = crate::recursive_block_alloc::RecursiveStruct<Expr<usize>>;

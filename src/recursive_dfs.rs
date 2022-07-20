@@ -1,6 +1,6 @@
 use crate::{
     functor::Functor,
-    recursive_traits::{CoRecursive, Recursive},
+    recursive::{CoRecursive, Recursive},
 };
 
 /// Generic struct used to represent a recursive structure of some type F<usize>
@@ -39,10 +39,7 @@ impl<A, U, O: Functor<(), Unwrapped = A, To = U>> CoRecursive<A, O> for Recursiv
 
             let mut topush = Vec::new();
 
-            let node = node.fmap(|aa| {
-                topush.push(aa);
-                ()
-            });
+            let node = node.fmap(|aa| topush.push(aa));
 
             frontier.extend(topush.into_iter().rev());
 
@@ -73,7 +70,6 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = ()>> Recursive<A, O> for RecursiveS
     }
 }
 
-
 pub fn unfold_and_fold_result<
     // F, a type parameter of kind * -> * that cannot be represented in rust
     E,
@@ -86,8 +82,8 @@ pub fn unfold_and_fold_result<
     CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,          // Seed -> Result<F<Seed>, E>
 >(
     seed: Seed,
-    coalg: CoAlg,
-    mut alg: Alg,
+    coalg: CoAlg, // Seed -> F<Seed>
+    mut alg: Alg, // F<Out> -> Out
 ) -> Result<Out, E> {
     enum State<Pre, Post> {
         PreVisit(Pre),
@@ -101,16 +97,11 @@ pub fn unfold_and_fold_result<
         match item {
             State::PreVisit(seed) => {
                 let node = coalg(seed)?;
-
                 let mut topush = Vec::new();
 
-                let node = node.fmap(|seed| {
-                    topush.push(State::PreVisit(seed));
-                    ()
-                });
+                let node = node.fmap(|seed| topush.push(State::PreVisit(seed)));
 
                 todo.push(State::PostVisit(node));
-
                 todo.extend(topush.into_iter());
             }
             State::PostVisit(node) => {
@@ -122,19 +113,17 @@ pub fn unfold_and_fold_result<
     Ok(vals.pop().unwrap())
 }
 
-pub fn unfold_and_fold<
-    Seed,
-    Out,
+pub fn unfold_and_fold<Seed, Out, GenerateExpr, ConsumeExpr, U, Alg, CoAlg>(
+    seed: Seed,
+    coalg: CoAlg, // Seed   -> F<Seed>
+    mut alg: Alg, // F<Out> -> Out
+) -> Out
+where
     GenerateExpr: Functor<(), Unwrapped = Seed, To = U>,
-    ConsumeExpr,
     U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,
     Alg: FnMut(ConsumeExpr) -> Out,
     CoAlg: Fn(Seed) -> GenerateExpr,
->(
-    seed: Seed,
-    coalg: CoAlg,
-    mut alg: Alg,
-) -> Out {
+{
     enum State<Pre, Post> {
         PreVisit(Pre),
         PostVisit(Post),
@@ -147,16 +136,10 @@ pub fn unfold_and_fold<
         match item {
             State::PreVisit(seed) => {
                 let node = coalg(seed);
-
                 let mut topush = Vec::new();
-
-                let node = node.fmap(|seed| {
-                    topush.push(State::PreVisit(seed));
-                    ()
-                });
+                let node = node.fmap(|seed| topush.push(State::PreVisit(seed)));
 
                 todo.push(State::PostVisit(node));
-
                 todo.extend(topush.into_iter());
             }
             State::PostVisit(node) => {
@@ -167,18 +150,6 @@ pub fn unfold_and_fold<
     }
     vals.pop().unwrap()
 }
-
-// TODO: consider using slab instead of vec for underlying RecursiveStruct
-
-// TODO: use noop hasher impl for usize - much much faster, all usizes are unique
-
-// IDEA - take a mutable ref - &mut self, for fold and unfold - could then use vec drain (?) - so then struct is holding ARENA instead of just the elem- 'recursion scheme evaluator type' - could own and reuse hashmap
-// IDEA (cont) - if I'm repeatedly evaluating a cata I could reuse an arena? would have to grow it for each eval - can drop arena each eval and reuse allocation, can amortize to LESS THAN ONE EVAL per fold
-// would use same alloc for fold/unfolds - evaluator struct tied to single <A, O>
-
-// can use slab to impl fused fold/unfold mb - also read impl? it's interesting
-
-// TODO - compile pass over F<slabref> to preserve recursive links
 
 impl<'a, A: std::fmt::Debug, O: 'a, U: std::fmt::Debug> Recursive<A, O>
     for RecursiveStructRef<'a, U>

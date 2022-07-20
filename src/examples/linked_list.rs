@@ -1,6 +1,6 @@
 use crate::functor::Functor;
-use crate::recursive::RecursiveStruct;
-use crate::recursive_traits::{CoRecursive, Recursive};
+use crate::recursive::{CoRecursive, Recursive};
+use crate::recursive_block_alloc::RecursiveStruct;
 
 /// A linked list of characters. Not good or idiomatic, but it provides a nice minimal example
 #[derive(Debug, Clone, Copy)]
