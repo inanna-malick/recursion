@@ -12,6 +12,8 @@ expr_example = []
 
 [dependencies]
 futures = "0.3"
+tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", "io-util", "sync"]}
+chashmap = "2.2.2"
 
 [dev-dependencies]
 clap = {version = "3.2", features = ["derive"]}
@@ -19,7 +21,6 @@ colored = "2"
 criterion = {version = "0.3", features = ["html_reports"]}
 proptest = "1.0"
 regex = "1"
-tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", "io-util"]}
 
 [[bench]]
 name = "expr"

@@ -1,4 +1,5 @@
 pub mod functor;
+pub mod lazy_async;
 pub mod recursive;
 pub mod recursive_tree;
 pub mod stack_machine_lazy;

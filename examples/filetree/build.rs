@@ -20,7 +20,6 @@ async fn build_layer<F: for<'x> Fn(&'x OsString) -> bool + Send + Sync>(
     maybe_dir_entry: Option<DirEntry>,
     filter: &F,
 ) -> std::io::Result<FileTree<Option<DirEntry>>> {
-    // println!("build layer");
     match maybe_dir_entry {
         None => {
             let entries = process_dir(root_path, filter).await?;

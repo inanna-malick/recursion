@@ -35,8 +35,6 @@ fn bench_eval(criterion: &mut Criterion) {
             _ => unreachable!(),
         });
 
-        // println!("heap size for depth {}: dfs {}", big_expr_dfs.len);
-
         test_cases.push((depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr));
     }
 
