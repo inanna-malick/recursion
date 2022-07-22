@@ -1,9 +1,9 @@
 pub mod build;
 pub mod search;
 
-use schemes::{functor::Functor, recursive_tree::block_allocation::ArenaIndex};
-use schemes::recursive::Foldable;
+use schemes::recursive::Collapse;
 use schemes::recursive_tree::RecursiveTree;
+use schemes::{functor::Functor, recursive_tree::arena_eval::ArenaIndex};
 use std::{collections::HashMap, ffi::OsString};
 
 // structure of the file tree with metadata, no file contents, files do not each own their full path b/c that's too much overhead
@@ -53,8 +53,9 @@ pub type RecursiveFileTree = RecursiveTree<FileTree<ArenaIndex>, ArenaIndex>;
 
 /// calculate the depth of a file
 pub fn depth(tree: &RecursiveFileTree) -> usize {
-    tree.as_ref().fold_layers(|node: FileTreeRef<usize>| match node {
-        FileTreeRef::Dir(depths) => depths.into_iter().map(|(_k, v)| v).max().unwrap_or(0) + 1,
-        _ => 1,
-    })
+    tree.as_ref()
+        .collapse_layers(|node: FileTreeRef<usize>| match node {
+            FileTreeRef::Dir(depths) => depths.into_iter().map(|(_k, v)| v).max().unwrap_or(0) + 1,
+            _ => 1,
+        })
 }

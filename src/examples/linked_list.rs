@@ -1,7 +1,7 @@
 use crate::functor::Functor;
-use crate::recursive::{Foldable, Generatable};
+use crate::recursive::{Collapse, Expand};
+use crate::recursive_tree::arena_eval::ArenaIndex;
 use crate::recursive_tree::RecursiveTree;
-use crate::recursive_tree::block_allocation::ArenaIndex;
 
 /// A linked list of characters. Not good or idiomatic, but it provides a nice minimal example
 #[derive(Debug, Clone, Copy)]
@@ -25,7 +25,7 @@ impl<A, B> Functor<B> for CharLinkedList<A> {
 pub type RecursiveString = RecursiveTree<CharLinkedList<ArenaIndex>, ArenaIndex>;
 
 pub fn from_str(s: &str) -> RecursiveString {
-    RecursiveString::generate_layers(s.chars(), |mut it| {
+    RecursiveString::expand_layers(s.chars(), |mut it| {
         if let Some(c) = it.next() {
             CharLinkedList::Cons(c, it)
         } else {
@@ -35,7 +35,7 @@ pub fn from_str(s: &str) -> RecursiveString {
 }
 
 pub fn to_str(r: RecursiveString) -> String {
-    r.fold_layers(|cll| match cll {
+    r.collapse_layers(|cll| match cll {
         CharLinkedList::Cons(c, s) => format!("{}{}", c, s),
         CharLinkedList::Nil => String::new(),
     })

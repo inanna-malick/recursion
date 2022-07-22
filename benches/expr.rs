@@ -5,7 +5,7 @@ use schemes::{
         naive::ExprAST,
         BlocAllocExpr, DFSStackExpr, Expr,
     },
-    recursive::{Foldable, Generatable},
+    recursive::{Collapse, Expand},
 };
 
 fn bench_eval(criterion: &mut Criterion) {
@@ -13,7 +13,7 @@ fn bench_eval(criterion: &mut Criterion) {
 
     // build some Big Expressions that are Pointless and Shitty
     for depth in 17..18 {
-        let big_expr_bloc_alloc = BlocAllocExpr::generate_layers(depth, |x| {
+        let big_expr_bloc_alloc = BlocAllocExpr::expand_layers(depth, |x| {
             if x > 0 {
                 Expr::Add(x - 1, x - 1)
             } else {
@@ -21,7 +21,7 @@ fn bench_eval(criterion: &mut Criterion) {
             }
         });
 
-        let big_expr_dfs = DFSStackExpr::generate_layers(depth, |x| {
+        let big_expr_dfs = DFSStackExpr::expand_layers(depth, |x| {
             if x > 0 {
                 Expr::Add(x - 1, x - 1)
             } else {
@@ -29,7 +29,7 @@ fn bench_eval(criterion: &mut Criterion) {
             }
         });
 
-        let boxed_big_expr = big_expr_dfs.as_ref().fold_layers(|n| match n {
+        let boxed_big_expr = big_expr_dfs.as_ref().collapse_layers(|n| match n {
             Expr::Add(a, b) => Box::new(ExprAST::Add(a, b)),
             Expr::LiteralInt(x) => Box::new(ExprAST::LiteralInt(x)),
             _ => unreachable!(),
@@ -54,12 +54,12 @@ fn bench_eval(criterion: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("my new fold method", depth),
             &big_expr_bloc_alloc,
-            |b, expr| b.iter(|| expr.as_ref().fold_layers(eval_layer)),
+            |b, expr| b.iter(|| expr.as_ref().collapse_layers(eval_layer)),
         );
         group.bench_with_input(
             BenchmarkId::new("fold dfs stack", depth),
             &big_expr_dfs,
-            |b, expr| b.iter(|| expr.as_ref().fold_layers(eval_layer)),
+            |b, expr| b.iter(|| expr.as_ref().collapse_layers(eval_layer)),
         );
         group.bench_with_input(
             BenchmarkId::new("fold stack_machine lazy", depth),

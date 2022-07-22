@@ -1,7 +1,7 @@
 use crate::filetree::{FileTree, RecursiveFileTree};
 use futures::{future::BoxFuture, FutureExt};
 use regex::Regex;
-use schemes::recursive::Foldable;
+use schemes::recursive::Collapse;
 use std::{fs::Metadata, path::PathBuf};
 
 pub type LineNumber = usize;
@@ -19,7 +19,7 @@ pub fn search(
     root_dir: PathBuf,
     regex: &Regex,
 ) -> BoxFuture<std::io::Result<Vec<GrepResult>>> {
-    let f = tree.fold_layers(move |node| {
+    let f = tree.collapse_layers(move |node| {
         Box::new(move |path| async move { grep_layer(node, path, regex).await }.boxed())
     });
 

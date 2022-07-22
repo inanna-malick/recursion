@@ -1,19 +1,26 @@
 use futures::future::BoxFuture;
 
-/// Support for recursion - folding a recursive structure into a single seed
-pub trait Foldable<A, O> {
-    fn fold_layers<F: FnMut(O) -> A>(self, fold_layer: F) -> A;
+/// Support for collapsing a structure into a single value, one layer at a time
+pub trait Collapse<A, O> {
+    fn collapse_layers<F: FnMut(O) -> A>(self, collapse_layer: F) -> A;
 }
 
-/// Support for corecursion - unfolding a recursive structure from a seed
-pub trait Generatable<A, O> {
-    fn generate_layers<F: Fn(A) -> O>(a: A, generate_layer: F) -> Self;
+
+/// Support for expanding a structure from a seed value, one layer at a time
+pub trait Expand<A, O> {
+    fn expand_layers<F: Fn(A) -> O>(a: A, expand_layer: F) -> Self;
 }
 
-pub trait GeneratableAsync<A, O> {
-    fn generate_layers_async<'a, E: Send + 'a, F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a>(
+
+/// Support for asynchronously expanding a structure from a seed value, one layer at a time.
+pub trait ExpandAsync<A, O> { 
+    fn expand_layers_async<
+        'a,
+        E: Send + 'a,
+        F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
+    >(
         a: A,
-        coalg: F,
+        expand_layer: F,
     ) -> BoxFuture<'a, Result<Self, E>>
     where
         Self: Sized,

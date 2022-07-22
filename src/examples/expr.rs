@@ -3,7 +3,9 @@ pub mod eval;
 pub mod monomorphic;
 pub mod naive;
 
-use crate::{functor::Functor, recursive_tree::{RecursiveTree, block_allocation::ArenaIndex, dfs_stack_machine::StackMarker}};
+use crate::{
+    functor::Functor, recursive_tree::{stack_machine_eval::StackMarker, arena_eval::ArenaIndex, RecursiveTree},
+};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]

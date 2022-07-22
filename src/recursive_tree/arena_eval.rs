@@ -5,10 +5,13 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::functor::Functor;
-use crate::recursive::{Foldable, Generatable, GeneratableAsync};
+use crate::recursive::{Collapse, Expand, ExpandAsync};
 use crate::recursive_tree::{RecursiveTree, RecursiveTreeRef};
 
-
+/// Used to mark structures stored in an 'RecursiveTree<Layer<ArenaIndex>, ArenaIndex>'
+/// 
+/// Has the same memory cost as a boxed pointer and provides the fastest
+/// 'Collapse::collapse_layers' implementation
 #[derive(Debug, Clone, Copy)]
 pub struct ArenaIndex(usize);
 
@@ -18,8 +21,10 @@ impl ArenaIndex {
     }
 }
 
-impl<A, U, O: Functor<ArenaIndex, Unwrapped = A, To = U>> Generatable<A, O> for RecursiveTree<U, ArenaIndex> {
-    fn generate_layers<F: Fn(A) -> O>(a: A, generate_layer: F) -> Self {
+impl<A, U, O: Functor<ArenaIndex, Unwrapped = A, To = U>> Expand<A, O>
+    for RecursiveTree<U, ArenaIndex>
+{
+    fn expand_layers<F: Fn(A) -> O>(a: A, generate_layer: F) -> Self {
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
 
@@ -43,10 +48,14 @@ impl<A, U, O: Functor<ArenaIndex, Unwrapped = A, To = U>> Generatable<A, O> for 
     }
 }
 
-impl<A, U: Send, O: Functor<ArenaIndex, Unwrapped = A, To = U>> GeneratableAsync<A, O>
+impl<A, U: Send, O: Functor<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, O>
     for RecursiveTree<U, ArenaIndex>
 {
-    fn generate_layers_async<'a, E: Send + 'a, F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a>(
+    fn expand_layers_async<
+        'a,
+        E: Send + 'a,
+        F: Fn(A) -> BoxFuture<'a, Result<O, E>> + Send + Sync + 'a,
+    >(
         seed: A,
         generate_layer: F,
     ) -> BoxFuture<'a, Result<Self, E>>
@@ -81,9 +90,11 @@ impl<A, U: Send, O: Functor<ArenaIndex, Unwrapped = A, To = U>> GeneratableAsync
     }
 }
 
-impl<A, O, U: Functor<A, To = O, Unwrapped = ArenaIndex>> Foldable<A, O> for RecursiveTree<U, ArenaIndex> {
+impl<A, O, U: Functor<A, To = O, Unwrapped = ArenaIndex>> Collapse<A, O>
+    for RecursiveTree<U, ArenaIndex>
+{
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn fold_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
+    fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
         let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
             .take(self.elems.len())
             .collect::<Vec<_>>();
@@ -102,19 +113,21 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = ArenaIndex>> Foldable<A, O> for Rec
         }
 
         unsafe {
-            let maybe_uninit =
-                std::mem::replace(results.get_unchecked_mut(ArenaIndex::head().0), MaybeUninit::uninit());
+            let maybe_uninit = std::mem::replace(
+                results.get_unchecked_mut(ArenaIndex::head().0),
+                MaybeUninit::uninit(),
+            );
             maybe_uninit.assume_init()
         }
     }
 }
 
-impl<'a, A, O: 'a, U> Foldable<A, O> for RecursiveTreeRef<'a, U, ArenaIndex>
+impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, ArenaIndex>
 where
     &'a U: Functor<A, To = O, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn fold_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
+    fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
         let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
             .take(self.elems.len())
             .collect::<Vec<_>>();
@@ -133,8 +146,10 @@ where
         }
 
         unsafe {
-            let maybe_uninit =
-                std::mem::replace(results.get_unchecked_mut(ArenaIndex::head().0), MaybeUninit::uninit());
+            let maybe_uninit = std::mem::replace(
+                results.get_unchecked_mut(ArenaIndex::head().0),
+                MaybeUninit::uninit(),
+            );
             maybe_uninit.assume_init()
         }
     }

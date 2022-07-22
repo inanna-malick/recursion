@@ -1,6 +1,6 @@
 use crate::filetree::{FileTree, RecursiveFileTree};
 use futures::FutureExt;
-use schemes::recursive::GeneratableAsync;
+use schemes::recursive::ExpandAsync;
 use std::ffi::OsString;
 use std::{collections::HashMap, path::Path};
 use tokio::fs::DirEntry;
@@ -9,7 +9,7 @@ pub async fn build_file_tree<F: for<'x> Fn(&'x OsString) -> bool + Send + Sync>(
     root_path: String,
     filter: &F,
 ) -> std::io::Result<RecursiveFileTree> {
-    RecursiveFileTree::generate_layers_async(None, |dir_entry: Option<DirEntry>| {
+    RecursiveFileTree::expand_layers_async(None, |dir_entry: Option<DirEntry>| {
         async { build_layer(&root_path, dir_entry, filter).await }.boxed()
     })
     .await
