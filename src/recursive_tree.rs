@@ -1,13 +1,15 @@
 pub mod block_allocation;
 pub mod dfs_stack_machine;
 
-/// Generic struct used to represent a recursive structure of some type F<U>
-pub struct RecursiveTree<F, U> {
+/// A reference to some recursive structure with layers of partially-applied type `Layer`, 
+/// where `Index` is the type that `Layer` is parameterized over and `Wrapped` is `Layer<Index>`
+pub struct RecursiveTree<Wrapped, Index> {
     // nonempty, in topological-sorted order
-    elems: Vec<F>,
-    // the type over which 'F' is parameterized
-    _underlying: std::marker::PhantomData<U>, // TODO: a better name is required than F<U>
+    elems: Vec<Wrapped>,
+    // the index type over which 'Layer' is parameterized
+    _underlying: std::marker::PhantomData<Index>,
 }
+
 
 impl<'a, F, U> RecursiveTree<F, U> {
     pub fn as_ref(&'a self) -> RecursiveTreeRef<'a, F, U> {
@@ -18,9 +20,11 @@ impl<'a, F, U> RecursiveTree<F, U> {
     }
 }
 
-/// Generic struct used to represent a refernce to a recursive structure of some type F<usize>
-pub struct RecursiveTreeRef<'a, F, U> {
-    // nonempty, in topological-sorted order
-    elems: &'a [F],
-    _underlying: std::marker::PhantomData<U>,
+/// A reference to some recursive structure with layers of partially-applied type `Layer`, 
+/// where `Index` is the type that `Layer` is parameterized over and `Wrapped` is `Layer<Index>`
+pub struct RecursiveTreeRef<'a, Wrapped, Index> {
+    // the index type over which 'Layer' is parameterized
+    elems: &'a [Wrapped],
+    // the type over which 'F' is parameterized
+    _underlying: std::marker::PhantomData<Index>,
 }

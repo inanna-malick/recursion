@@ -9,7 +9,7 @@ pub async fn build_file_tree<F: for<'x> Fn(&'x OsString) -> bool + Send + Sync>(
     root_path: String,
     filter: &F,
 ) -> std::io::Result<RecursiveFileTree> {
-    RecursiveFileTree::unfold_async(None, |dir_entry: Option<DirEntry>| {
+    RecursiveFileTree::generate_layers_async(None, |dir_entry: Option<DirEntry>| {
         async { build_layer(&root_path, dir_entry, filter).await }.boxed()
     })
     .await

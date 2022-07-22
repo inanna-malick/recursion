@@ -3,7 +3,7 @@ pub mod eval;
 pub mod monomorphic;
 pub mod naive;
 
-use crate::{functor::Functor, recursive_tree::RecursiveTree};
+use crate::{functor::Functor, recursive_tree::{RecursiveTree, block_allocation::ArenaIndex, dfs_stack_machine::StackMarker}};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
@@ -45,5 +45,5 @@ impl<'a, A: Copy, B: 'a> Functor<B> for &'a Expr<A> {
     }
 }
 
-pub type DFSStackExpr = RecursiveTree<Expr<()>, ()>;
-pub type BlocAllocExpr = RecursiveTree<Expr<usize>, usize>;
+pub type DFSStackExpr = RecursiveTree<Expr<StackMarker>, StackMarker>;
+pub type BlocAllocExpr = RecursiveTree<Expr<ArenaIndex>, ArenaIndex>;

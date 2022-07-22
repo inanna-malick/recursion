@@ -1,7 +1,7 @@
 pub mod build;
 pub mod search;
 
-use schemes::functor::Functor;
+use schemes::{functor::Functor, recursive_tree::block_allocation::ArenaIndex};
 use schemes::recursive::Foldable;
 use schemes::recursive_tree::RecursiveTree;
 use std::{collections::HashMap, ffi::OsString};
@@ -47,13 +47,13 @@ impl<'a, A: Copy + 'a, B: 'a> Functor<B> for &'a FileTree<A> {
     }
 }
 
-pub type RecursiveFileTree = RecursiveTree<FileTree<usize>, usize>;
+pub type RecursiveFileTree = RecursiveTree<FileTree<ArenaIndex>, ArenaIndex>;
 
 // some utility functions over FileTreeRef, to show how using borrowed data works
 
 /// calculate the depth of a file
 pub fn depth(tree: &RecursiveFileTree) -> usize {
-    tree.as_ref().fold(|node: FileTreeRef<usize>| match node {
+    tree.as_ref().fold_layers(|node: FileTreeRef<usize>| match node {
         FileTreeRef::Dir(depths) => depths.into_iter().map(|(_k, v)| v).max().unwrap_or(0) + 1,
         _ => 1,
     })
