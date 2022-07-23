@@ -5,7 +5,7 @@ pub use crate::recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::Stac
 
 /// A recursive structure with layers of partially-applied type `Layer`,
 /// where `Index` is the type that `Layer` is parameterized over and `Wrapped` is `Layer<Index>`
-/// 
+///
 /// Stored as a flat vector of layers in topological order.
 pub struct RecursiveTree<Wrapped, Index> {
     // nonempty, in topological-sorted order
@@ -25,7 +25,7 @@ impl<'a, F, U> RecursiveTree<F, U> {
 
 /// A reference to some recursive structure with layers of partially-applied type `Layer`,
 /// where `Index` is the type that `Layer` is parameterized over and `Wrapped` is `Layer<Index>`
-/// 
+///
 /// Stored as a flat vector of layers in topological order.
 pub struct RecursiveTreeRef<'a, Wrapped, Index> {
     elems: &'a [Wrapped],

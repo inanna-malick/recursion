@@ -12,8 +12,10 @@ use crate::{
 #[cfg(test)]
 use proptest::prelude::*;
 
+#[derive(Debug, Clone)]
 pub struct ValidInt(i64);
 
+#[derive(Debug, Clone)]
 pub enum CompiledExpr<A> {
     Add(A, A),
     Sub(A, A),

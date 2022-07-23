@@ -4,12 +4,10 @@ use crate::{
     recursive_tree::{RecursiveTree, RecursiveTreeRef},
 };
 
-
-
 /// Used to mark structures that are expanded via depth first traversal and consumed via stack machine
 /// This is a zero-size marker type and has the lowest memory cost (lower than boxed pointers)
 /// at the cost of a slightly slower 'Collapse::collapse_layers' fn speed
-/// 
+///
 /// NOTE: adds hard requirement, functor traversal order MUST be constant and arity must not change
 #[derive(Debug, Clone, Copy)]
 pub struct StackMarker;

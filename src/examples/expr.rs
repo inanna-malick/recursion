@@ -2,9 +2,12 @@ pub mod eval;
 #[cfg(test)]
 pub mod monomorphic;
 pub mod naive;
+#[cfg(test)]
+pub mod typed_eval;
 
 use crate::{
-    functor::Functor, recursive_tree::{stack_machine_eval::StackMarker, arena_eval::ArenaIndex, RecursiveTree},
+    functor::Functor,
+    recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
 
 /// Simple expression language with some operations on integers

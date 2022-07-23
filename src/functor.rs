@@ -1,9 +1,7 @@
-
-
 /// Provides the ability to map over some structure 'Layer',
 /// such that 'Self' is 'Layer<Unwrapped>', via a function 'Fn(Unwrapped) -> B'
-/// producing a value 'To' such 'To' is 'Layer<B>'. 
-/// 
+/// producing a value 'To' such 'To' is 'Layer<B>'.
+///
 /// The function provided to fmap MUST be strictly applied.
 /// This precludes defining what would otherwise be valid functors for, eg,
 /// 'BoxFuture<'_, A>'.

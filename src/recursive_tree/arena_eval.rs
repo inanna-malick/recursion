@@ -9,7 +9,7 @@ use crate::recursive::{Collapse, Expand, ExpandAsync};
 use crate::recursive_tree::{RecursiveTree, RecursiveTreeRef};
 
 /// Used to mark structures stored in an 'RecursiveTree<Layer<ArenaIndex>, ArenaIndex>'
-/// 
+///
 /// Has the same memory cost as a boxed pointer and provides the fastest
 /// 'Collapse::collapse_layers' implementation
 #[derive(Debug, Clone, Copy)]
