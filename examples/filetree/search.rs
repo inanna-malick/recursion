@@ -1,7 +1,7 @@
 use crate::filetree::{FileTree, RecursiveFileTree};
 use futures::{future::BoxFuture, FutureExt};
 use regex::Regex;
-use schemes::recursive::Collapse;
+use rust_schemes::recursive::Collapse;
 use std::{fs::Metadata, path::PathBuf};
 
 pub type LineNumber = usize;

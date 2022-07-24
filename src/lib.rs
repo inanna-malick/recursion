@@ -1,3 +1,9 @@
+//! Stack safe and performant recursion in Rust.
+//!
+//! Generic utilities for expanding and collapsing user-defined recursive structures
+//! of any type. Define recursive algorithms by writing functions that expand or
+//! collapse a single layer of your structure.
+
 pub mod functor;
 pub mod recursive;
 pub mod recursive_tree;

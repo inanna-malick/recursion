@@ -1,3 +1,6 @@
+//! Recursive structure stored using a compact stack machine representation
+//! Collapsed via stack machine evaluation.
+//!
 use crate::{
     functor::Functor,
     recursive::{Collapse, Expand},

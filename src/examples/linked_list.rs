@@ -3,6 +3,34 @@ use crate::recursive::{Collapse, Expand};
 use crate::recursive_tree::arena_eval::ArenaIndex;
 use crate::recursive_tree::RecursiveTree;
 
+#[derive(Debug, Clone)]
+pub struct NTreeLayer<Val, A> {
+    val: Val,
+    children: Vec<A>,
+}
+
+pub type RecursiveNTree<V> = RecursiveTree<NTreeLayer<V, ArenaIndex>, ArenaIndex>;
+
+impl<A, B, V> Functor<B> for NTreeLayer<V, A> {
+    type To = NTreeLayer<V, B>;
+    type Unwrapped = A;
+
+    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To {
+        Self::To {
+            val: self.val,
+            children: self.children.into_iter().map(f).collect(),
+        }
+    }
+}
+
+pub fn depth<V>(r: RecursiveNTree<V>) -> usize {
+    r.collapse_layers(|layer| layer.children.iter().max().map_or(1, |n| n + 1))
+}
+
+pub fn max<V: Ord>(r: RecursiveNTree<V>) -> Option<V> {
+    r.collapse_layers(|layer| layer.children.into_iter().filter_map(|x| x).max())
+}
+
 /// A linked list of characters. Not good or idiomatic, but it provides a nice minimal example
 #[derive(Debug, Clone, Copy)]
 pub enum CharLinkedList<A> {

@@ -45,8 +45,8 @@ async fn main() -> std::io::Result<()> {
         println!("{} {:?}", "modified".cyan(), elem.metadata.modified());
         for (line_num, matching_line) in elem.matching_lines.into_iter() {
             println!(
-                "{}:\t{}",
-                format!("{:?}:", line_num).magenta(),
+                "{}\t{}",
+                format!("{:?}::", line_num).magenta(),
                 matching_line
             );
         }

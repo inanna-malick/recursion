@@ -1,5 +1,5 @@
 [package]
-name = "schemes"
+name = "rust_schemes"
 version = "0.0.1-BETA"
 edition = "2021"
 description = "cache-aware recursion schemes in rust"

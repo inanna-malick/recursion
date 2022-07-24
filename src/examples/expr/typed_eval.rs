@@ -300,7 +300,6 @@ mod tests {
         assert_eq!(result, Ok(ExprRes::Int(-6)));
     }
 
-
     #[tokio::test]
     async fn test_fail_on_db_call() {
         // valid
@@ -308,7 +307,10 @@ mod tests {
         let tree = If(
             Box::new(Eq(Box::new(LiteralInt(3)), Box::new(LiteralInt(3)))),
             Box::new(Sub(Box::new(LiteralInt(1)), Box::new(LiteralInt(7)))),
-            Box::new(Sub(Box::new(LiteralInt(-11)), Box::new(DatabaseInt(DBKey(999))))),
+            Box::new(Sub(
+                Box::new(LiteralInt(-11)),
+                Box::new(DatabaseInt(DBKey(999))),
+            )),
         );
 
         let result = typecheck_and_eval(&tree).expect("no type error").await;

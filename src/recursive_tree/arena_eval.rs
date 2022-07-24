@@ -1,3 +1,5 @@
+//! Recursive structure that uses an arena to quickly collapse recursive structures.
+
 use std::collections::VecDeque;
 use std::mem::MaybeUninit;
 
@@ -21,24 +23,25 @@ impl ArenaIndex {
     }
 }
 
-impl<A, U, O: Functor<ArenaIndex, Unwrapped = A, To = U>> Expand<A, O>
-    for RecursiveTree<U, ArenaIndex>
+impl<A, Underlying, Wrapped> Expand<A, Wrapped> for RecursiveTree<Underlying, ArenaIndex>
+where
+    Wrapped: Functor<ArenaIndex, Unwrapped = A, To = Underlying>,
 {
-    fn expand_layers<F: Fn(A) -> O>(a: A, generate_layer: F) -> Self {
+    fn expand_layers<F: Fn(A) -> Wrapped>(a: A, expand_layer: F) -> Self {
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
 
         // unfold to build a vec of elems while preserving topo order
         while let Some(seed) = frontier.pop_front() {
-            let node = generate_layer(seed);
+            let layer = expand_layer(seed);
 
-            let node = node.fmap(|aa| {
+            let layer = layer.fmap(|aa| {
                 frontier.push_back(aa);
                 // idx of pointed-to element determined from frontier + elems size
                 ArenaIndex(elems.len() + frontier.len())
             });
 
-            elems.push(node);
+            elems.push(layer);
         }
 
         Self {
@@ -90,11 +93,12 @@ impl<A, U: Send, O: Functor<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, O
     }
 }
 
-impl<A, O, U: Functor<A, To = O, Unwrapped = ArenaIndex>> Collapse<A, O>
-    for RecursiveTree<U, ArenaIndex>
+impl<A, Wrapped, Underlying> Collapse<A, Wrapped> for RecursiveTree<Underlying, ArenaIndex>
+where
+    Underlying: Functor<A, To = Wrapped, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
+    fn collapse_layers<F: FnMut(Wrapped) -> A>(self, mut fold_layer: F) -> A {
         let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
             .take(self.elems.len())
             .collect::<Vec<_>>();

@@ -1,5 +1,7 @@
 use crate::functor::Functor;
 
+// NOTE: can impl recursive over _some seed value_ eg BoxExpr
+// given a _project_ trait to handle the mechanical 'ana' bit
 pub fn unfold_and_fold_result<
     // F, a type parameter of kind * -> * that cannot be represented in rust
     E,
