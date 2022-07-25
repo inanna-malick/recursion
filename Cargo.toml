@@ -1,5 +1,5 @@
 [package]
-name = "rust_schemes"
+name = "recursion"
 version = "0.0.1-BETA"
 edition = "2021"
 description = "cache-aware recursion schemes in rust"
@@ -8,7 +8,6 @@ license = "MIT OR Apache-2.0"
 [features]
 default = []
 expr_example = []
-# unsafe = []
 
 [dependencies]
 futures = "0.3"

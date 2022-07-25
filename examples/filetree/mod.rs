@@ -1,9 +1,9 @@
 pub mod build;
 pub mod search;
 
-use rust_schemes::recursive::Collapse;
-use rust_schemes::recursive_tree::RecursiveTree;
-use rust_schemes::{functor::Functor, recursive_tree::arena_eval::ArenaIndex};
+use recursion::recursive::Collapse;
+use recursion::recursive_tree::RecursiveTree;
+use recursion::{functor::Functor, recursive_tree::arena_eval::ArenaIndex};
 use std::{collections::HashMap, ffi::OsString};
 
 // structure of the file tree with metadata, no file contents, files do not each own their full path b/c that's too much overhead

@@ -1,6 +1,6 @@
 use crate::filetree::{FileTree, RecursiveFileTree};
 use futures::FutureExt;
-use rust_schemes::recursive::ExpandAsync;
+use recursion::recursive::ExpandAsync;
 use std::ffi::OsString;
 use std::{collections::HashMap, path::Path};
 use tokio::fs::DirEntry;
