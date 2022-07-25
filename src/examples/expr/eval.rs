@@ -103,17 +103,18 @@ proptest! {
     #[test]
     fn expr_eval(expr in arb_expr()) {
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
-        let expr = expr;
         let simple = naive_eval(&expr);
         let dfs_stack_eval = DFSStackExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
         let bloc_alloc_eval = BlocAllocExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
         let lazy_stack_eval = eval_lazy(&expr);
+        let lazy_eval_new = expr.collapse_layers(eval_layer);
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
 
 
         assert_eq!(simple, dfs_stack_eval);
         assert_eq!(simple, bloc_alloc_eval);
         assert_eq!(simple, lazy_stack_eval);
+        assert_eq!(simple, lazy_eval_new);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }

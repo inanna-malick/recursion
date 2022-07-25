@@ -16,3 +16,16 @@ pub trait Functor<B> {
     ///   note that enforcing this property may be problematic for, Hashmaps/Sets/etc
     fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To;
 }
+
+// basically just From/To but we want something clearly context-specific and, idk, lawful probably
+pub trait Project {
+    // A
+    type To; // F<A>
+    fn project(self) -> Self::To;
+}
+
+pub trait CoProject {
+    // A
+    type From; // F<A>
+    fn coproject(f: Self::From) -> Self;
+}

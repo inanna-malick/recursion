@@ -1,4 +1,4 @@
-use crate::examples::expr::*;
+use crate::{examples::expr::*, functor::Project};
 #[cfg(test)]
 use proptest::prelude::*;
 
@@ -17,6 +17,14 @@ pub fn generate_layer(x: &ExprAST) -> Expr<&ExprAST> {
         ExprAST::Sub(a, b) => Expr::Sub(a, b),
         ExprAST::Mul(a, b) => Expr::Mul(a, b),
         ExprAST::LiteralInt(x) => Expr::LiteralInt(*x),
+    }
+}
+
+impl Project for &ExprAST {
+    type To = Expr<Self>;
+
+    fn project(self) -> Self::To {
+        generate_layer(self)
     }
 }
 

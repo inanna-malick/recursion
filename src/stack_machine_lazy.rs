@@ -1,4 +1,40 @@
-use crate::functor::Functor;
+use crate::{
+    functor::{Functor, Project, CoProject},
+    Collapse, Expand,
+};
+
+
+
+
+impl<
+        // F, a type parameter of kind * -> * that cannot be represented in rust
+        Seed: Project<To = GenerateExpr>,
+        Out,
+        GenerateExpr: Functor<(), Unwrapped = Seed, To = U>, // F<Seed>
+        ConsumeExpr,                                         // F<Out>
+        U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
+    > Collapse<Out, ConsumeExpr> for Seed
+{
+    fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
+        unfold_and_fold(self, Project::project, collapse_layer)
+    }
+}
+
+impl<
+        // F, a type parameter of kind * -> * that cannot be represented in rust
+        Seed: Project<To = GenerateExpr>,
+        Out: CoProject<From = ConsumeExpr>,
+        GenerateExpr: Functor<(), Unwrapped = Seed, To = U>, // F<Seed>
+        ConsumeExpr,                                         // F<Out>
+        U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
+    > Expand<Seed, GenerateExpr> for Out
+{
+    fn expand_layers<F: Fn(Seed) -> GenerateExpr>(seed: Seed, expand_layer: F) -> Self {
+        unfold_and_fold(seed, expand_layer, CoProject::coproject)
+    }
+}
+
+
 
 // NOTE: can impl recursive over _some seed value_ eg BoxExpr
 // given a _project_ trait to handle the mechanical 'ana' bit
