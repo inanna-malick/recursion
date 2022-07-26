@@ -1,4 +1,4 @@
-use crate::{examples::expr::*, functor::Project};
+use crate::{examples::expr::*, map_layer::Project};
 #[cfg(test)]
 use proptest::prelude::*;
 

@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "recursion"
-version = "0.0.1-BETA"
+version = "0.0.1-BETA-2"
 dependencies = [
  "clap 3.2.8",
  "colored",

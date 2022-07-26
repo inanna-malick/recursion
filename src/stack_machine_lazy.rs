@@ -1,5 +1,5 @@
 use crate::{
-    functor::{Functor, Project, CoProject},
+    map_layer::{MapLayer, Project, CoProject},
     Collapse, Expand,
 };
 
@@ -10,9 +10,9 @@ impl<
         // F, a type parameter of kind * -> * that cannot be represented in rust
         Seed: Project<To = GenerateExpr>,
         Out,
-        GenerateExpr: Functor<(), Unwrapped = Seed, To = U>, // F<Seed>
+        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
         ConsumeExpr,                                         // F<Out>
-        U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
+        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
     > Collapse<Out, ConsumeExpr> for Seed
 {
     fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
@@ -24,9 +24,9 @@ impl<
         // F, a type parameter of kind * -> * that cannot be represented in rust
         Seed: Project<To = GenerateExpr>,
         Out: CoProject<From = ConsumeExpr>,
-        GenerateExpr: Functor<(), Unwrapped = Seed, To = U>, // F<Seed>
+        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
         ConsumeExpr,                                         // F<Out>
-        U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
+        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
     > Expand<Seed, GenerateExpr> for Out
 {
     fn expand_layers<F: Fn(Seed) -> GenerateExpr>(seed: Seed, expand_layer: F) -> Self {
@@ -43,9 +43,9 @@ pub fn unfold_and_fold_result<
     E,
     Seed,
     Out,
-    GenerateExpr: Functor<(), Unwrapped = Seed, To = U>, // F<Seed>
+    GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
     ConsumeExpr,                                         // F<Out>
-    U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<U>
+    U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<U>
     Alg: FnMut(ConsumeExpr) -> Result<Out, E>,           // F<Out> -> Result<Out, E>
     CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,          // Seed -> Result<F<Seed>, E>
 >(
@@ -67,13 +67,13 @@ pub fn unfold_and_fold_result<
                 let node = coalg(seed)?;
                 let mut topush = Vec::new();
 
-                let node = node.fmap(|seed| topush.push(State::PreVisit(seed)));
+                let node = node.map_layer(|seed| topush.push(State::PreVisit(seed)));
 
                 todo.push(State::PostVisit(node));
                 todo.extend(topush.into_iter());
             }
             State::PostVisit(node) => {
-                let node = node.fmap(|_: ()| vals.pop().unwrap());
+                let node = node.map_layer(|_: ()| vals.pop().unwrap());
                 vals.push(alg(node)?)
             }
         };
@@ -87,8 +87,8 @@ pub fn unfold_and_fold<Seed, Out, GenerateExpr, ConsumeExpr, U, Alg, CoAlg>(
     mut alg: Alg, // F<Out> -> Out
 ) -> Out
 where
-    GenerateExpr: Functor<(), Unwrapped = Seed, To = U>,
-    U: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,
+    GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>,
+    U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,
     Alg: FnMut(ConsumeExpr) -> Out,
     CoAlg: Fn(Seed) -> GenerateExpr,
 {
@@ -105,13 +105,13 @@ where
             State::PreVisit(seed) => {
                 let node = coalg(seed);
                 let mut topush = Vec::new();
-                let node = node.fmap(|seed| topush.push(State::PreVisit(seed)));
+                let node = node.map_layer(|seed| topush.push(State::PreVisit(seed)));
 
                 todo.push(State::PostVisit(node));
                 todo.extend(topush.into_iter());
             }
             State::PostVisit(node) => {
-                let node = node.fmap(|_: ()| vals.pop().unwrap());
+                let node = node.map_layer(|_: ()| vals.pop().unwrap());
                 vals.push(alg(node))
             }
         };
@@ -139,10 +139,10 @@ pub fn unfold_and_fold_annotate_result<
 ) -> Result<Out, E>
 where
     Annotation: Clone,
-    GenerateExpr: Functor<(), Unwrapped = Seed, To = U1>,
+    GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U1>,
     U1: Clone,
-    U1: Functor<Annotation, To = AnnotateExpr, Unwrapped = ()>,
-    U1: Functor<Out, To = ConsumeExpr, Unwrapped = ()>,
+    U1: MapLayer<Annotation, To = AnnotateExpr, Unwrapped = ()>,
+    U1: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,
     Alg: FnMut(Annotation, ConsumeExpr) -> Result<Out, E>,
     Annotate: FnMut(AnnotateExpr) -> Result<Annotation, E>,
     CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,
@@ -162,19 +162,19 @@ where
             State::PreVisit(seed) => {
                 let layer = coalg(seed)?;
                 let mut topush = Vec::new();
-                let layer: U1 = layer.fmap(|seed| topush.push(State::PreVisit(seed)));
+                let layer: U1 = layer.map_layer(|seed| topush.push(State::PreVisit(seed)));
 
                 todo.push(State::Annotate(layer));
                 todo.extend(topush.into_iter());
             }
             State::Annotate(layer) => {
-                let layer2 = layer.clone().fmap(|_: ()| annotate_vals.pop().unwrap());
+                let layer2 = layer.clone().map_layer(|_: ()| annotate_vals.pop().unwrap());
                 let annotation = annotate(layer2)?;
                 todo.push(State::PostVisit(annotation.clone(), layer));
                 annotate_vals.push(annotation);
             }
             State::PostVisit(annotation, layer) => {
-                let layer = layer.fmap(|_: ()| vals.pop().unwrap());
+                let layer = layer.map_layer(|_: ()| vals.pop().unwrap());
                 vals.push(alg(annotation, layer)?)
             }
         };

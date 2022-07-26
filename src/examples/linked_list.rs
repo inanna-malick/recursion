@@ -1,4 +1,4 @@
-use crate::functor::Functor;
+use crate::map_layer::MapLayer;
 use crate::recursive::{Collapse, Expand};
 use crate::recursive_tree::arena_eval::ArenaIndex;
 use crate::recursive_tree::RecursiveTree;
@@ -11,11 +11,11 @@ pub struct NTreeLayer<Val, A> {
 
 pub type RecursiveNTree<V> = RecursiveTree<NTreeLayer<V, ArenaIndex>, ArenaIndex>;
 
-impl<A, B, V> Functor<B> for NTreeLayer<V, A> {
+impl<A, B, V> MapLayer<B> for NTreeLayer<V, A> {
     type To = NTreeLayer<V, B>;
     type Unwrapped = A;
 
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To {
         Self::To {
             val: self.val,
             children: self.children.into_iter().map(f).collect(),
@@ -28,7 +28,7 @@ pub fn depth<V>(r: RecursiveNTree<V>) -> usize {
 }
 
 pub fn max<V: Ord>(r: RecursiveNTree<V>) -> Option<V> {
-    r.collapse_layers(|layer| layer.children.into_iter().filter_map(|x| x).max())
+    r.collapse_layers(|layer| layer.children.into_iter().flatten().max())
 }
 
 /// A linked list of characters. Not good or idiomatic, but it provides a nice minimal example
@@ -38,11 +38,11 @@ pub enum CharLinkedList<A> {
     Nil,
 }
 
-impl<A, B> Functor<B> for CharLinkedList<A> {
+impl<A, B> MapLayer<B> for CharLinkedList<A> {
     type To = CharLinkedList<B>;
     type Unwrapped = A;
 
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             CharLinkedList::Cons(c, a) => CharLinkedList::Cons(c, f(a)),
             CharLinkedList::Nil => CharLinkedList::Nil,

@@ -4,7 +4,7 @@
 //! of any type. Define recursive algorithms by writing functions that expand or
 //! collapse a single layer of your structure.
 
-pub mod functor;
+pub mod map_layer;
 pub mod recursive;
 pub mod recursive_tree;
 pub mod stack_machine_lazy;

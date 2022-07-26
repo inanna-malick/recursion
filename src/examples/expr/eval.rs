@@ -1,7 +1,7 @@
 use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
-use crate::functor::Functor;
+use crate::map_layer::MapLayer;
 use crate::stack_machine_lazy::{unfold_and_fold, unfold_and_fold_result};
 #[cfg(test)]
 use crate::{
@@ -23,12 +23,12 @@ pub enum CompiledExpr<A> {
     LiteralInt(ValidInt),
 }
 
-impl<A, B> Functor<B> for CompiledExpr<A> {
+impl<A, B> MapLayer<B> for CompiledExpr<A> {
     type To = CompiledExpr<B>;
     type Unwrapped = A;
 
     #[inline(always)]
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             CompiledExpr::Add(a, b) => CompiledExpr::Add(f(a), f(b)),
             CompiledExpr::Sub(a, b) => CompiledExpr::Sub(f(a), f(b)),

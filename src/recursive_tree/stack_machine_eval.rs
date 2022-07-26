@@ -2,7 +2,7 @@
 //! Collapsed via stack machine evaluation.
 //!
 use crate::{
-    functor::Functor,
+    map_layer::MapLayer,
     recursive::{Collapse, Expand},
     recursive_tree::{RecursiveTree, RecursiveTreeRef},
 };
@@ -11,11 +11,11 @@ use crate::{
 /// This is a zero-size marker type and has the lowest memory cost (lower than boxed pointers)
 /// at the cost of a slightly slower 'Collapse::collapse_layers' fn speed
 ///
-/// NOTE: adds hard requirement, functor traversal order MUST be constant and arity must not change
+/// NOTE: adds hard requirement, map_layer traversal order MUST be constant and arity must not change
 #[derive(Debug, Clone, Copy)]
 pub struct StackMarker;
 
-impl<A, U, O: Functor<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
+impl<A, U, O: MapLayer<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
     for RecursiveTree<U, StackMarker>
 {
     fn expand_layers<F: Fn(A) -> O>(a: A, generate_layer: F) -> Self {
@@ -27,7 +27,7 @@ impl<A, U, O: Functor<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
             let layer = generate_layer(seed);
 
             let mut topush = Vec::new();
-            let layer = layer.fmap(|aa| {
+            let layer = layer.map_layer(|aa| {
                 topush.push(aa);
                 StackMarker
             });
@@ -45,7 +45,7 @@ impl<A, U, O: Functor<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
     }
 }
 
-impl<A, O, U: Functor<A, To = O, Unwrapped = StackMarker>> Collapse<A, O>
+impl<A, O, U: MapLayer<A, To = O, Unwrapped = StackMarker>> Collapse<A, O>
     for RecursiveTree<U, StackMarker>
 {
     fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
@@ -53,7 +53,7 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = StackMarker>> Collapse<A, O>
 
         for layer in self.elems.into_iter() {
             // each layer is only referenced once so just remove it, also we know it's there so unwrap is fine
-            let layer = layer.fmap(|_| result_stack.pop().unwrap());
+            let layer = layer.map_layer(|_| result_stack.pop().unwrap());
 
             result_stack.push(fold_layer(layer));
         }
@@ -64,13 +64,13 @@ impl<A, O, U: Functor<A, To = O, Unwrapped = StackMarker>> Collapse<A, O>
 
 impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, StackMarker>
 where
-    &'a U: Functor<A, To = O, Unwrapped = StackMarker>,
+    &'a U: MapLayer<A, To = O, Unwrapped = StackMarker>,
 {
     fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
         let mut result_stack = Vec::with_capacity(32);
 
         for layer in self.elems.iter() {
-            let layer = layer.fmap(|_| result_stack.pop().unwrap());
+            let layer = layer.map_layer(|_| result_stack.pop().unwrap());
 
             result_stack.push(fold_layer(layer));
         }

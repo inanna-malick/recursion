@@ -6,7 +6,7 @@ pub mod naive;
 pub mod typed_eval;
 
 use crate::{
-    functor::Functor,
+    map_layer::MapLayer,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
 
@@ -19,12 +19,12 @@ pub enum Expr<A> {
     LiteralInt(i64),
 }
 
-impl<A, B> Functor<B> for Expr<A> {
+impl<A, B> MapLayer<B> for Expr<A> {
     type To = Expr<B>;
     type Unwrapped = A;
 
     #[inline(always)]
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             Expr::Add(a, b) => Expr::Add(f(a), f(b)),
             Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
@@ -35,12 +35,12 @@ impl<A, B> Functor<B> for Expr<A> {
 }
 
 // this is, like, basically fine? - just usize and ()
-impl<'a, A: Copy, B: 'a> Functor<B> for &'a Expr<A> {
+impl<'a, A: Copy, B: 'a> MapLayer<B> for &'a Expr<A> {
     type To = Expr<B>;
     type Unwrapped = A;
 
     #[inline(always)]
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             Expr::Add(a, b) => Expr::Add(f(*a), f(*b)),
             Expr::Sub(a, b) => Expr::Sub(f(*a), f(*b)),

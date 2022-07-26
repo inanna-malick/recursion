@@ -3,7 +3,7 @@ pub mod search;
 
 use recursion::recursive::Collapse;
 use recursion::recursive_tree::RecursiveTree;
-use recursion::{functor::Functor, recursive_tree::arena_eval::ArenaIndex};
+use recursion::{map_layer::MapLayer, recursive_tree::arena_eval::ArenaIndex};
 use std::{collections::HashMap, ffi::OsString};
 
 // structure of the file tree with metadata, no file contents, files do not each own their full path b/c that's too much overhead
@@ -17,11 +17,11 @@ pub enum FileTreeRef<'a, A> {
     Dir(HashMap<&'a OsString, A>),
 }
 
-impl<A, B> Functor<B> for FileTree<A> {
+impl<A, B> MapLayer<B> for FileTree<A> {
     type To = FileTree<B>;
     type Unwrapped = A;
 
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             FileTree::File(x) => FileTree::File(x),
             FileTree::Dir(xs) => {
@@ -32,11 +32,11 @@ impl<A, B> Functor<B> for FileTree<A> {
     }
 }
 
-impl<'a, A: Copy + 'a, B: 'a> Functor<B> for &'a FileTree<A> {
+impl<'a, A: Copy + 'a, B: 'a> MapLayer<B> for &'a FileTree<A> {
     type To = FileTreeRef<'a, B>;
     type Unwrapped = A;
 
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             FileTree::File(x) => FileTreeRef::File(x),
             FileTree::Dir(xs) => {

@@ -6,7 +6,7 @@ use std::mem::MaybeUninit;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
-use crate::functor::Functor;
+use crate::map_layer::MapLayer;
 use crate::recursive::{Collapse, Expand, ExpandAsync};
 use crate::recursive_tree::{RecursiveTree, RecursiveTreeRef};
 
@@ -25,7 +25,7 @@ impl ArenaIndex {
 
 impl<A, Underlying, Wrapped> Expand<A, Wrapped> for RecursiveTree<Underlying, ArenaIndex>
 where
-    Wrapped: Functor<ArenaIndex, Unwrapped = A, To = Underlying>,
+    Wrapped: MapLayer<ArenaIndex, Unwrapped = A, To = Underlying>,
 {
     fn expand_layers<F: Fn(A) -> Wrapped>(a: A, expand_layer: F) -> Self {
         let mut frontier = VecDeque::from([a]);
@@ -35,7 +35,7 @@ where
         while let Some(seed) = frontier.pop_front() {
             let layer = expand_layer(seed);
 
-            let layer = layer.fmap(|aa| {
+            let layer = layer.map_layer(|aa| {
                 frontier.push_back(aa);
                 // idx of pointed-to element determined from frontier + elems size
                 ArenaIndex(elems.len() + frontier.len())
@@ -51,7 +51,7 @@ where
     }
 }
 
-impl<A, U: Send, O: Functor<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, O>
+impl<A, U: Send, O: MapLayer<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, O>
     for RecursiveTree<U, ArenaIndex>
 {
     fn expand_layers_async<
@@ -75,7 +75,7 @@ impl<A, U: Send, O: Functor<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, O
             while let Some(seed) = frontier.pop_front() {
                 let layer = generate_layer(seed).await?;
 
-                let layer = layer.fmap(|aa| {
+                let layer = layer.map_layer(|aa| {
                     frontier.push_back(aa);
                     // idx of pointed-to element determined from frontier + elems size
                     ArenaIndex(elems.len() + frontier.len())
@@ -95,7 +95,7 @@ impl<A, U: Send, O: Functor<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, O
 
 impl<A, Wrapped, Underlying> Collapse<A, Wrapped> for RecursiveTree<Underlying, ArenaIndex>
 where
-    Underlying: Functor<A, To = Wrapped, Unwrapped = ArenaIndex>,
+    Underlying: MapLayer<A, To = Wrapped, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
     fn collapse_layers<F: FnMut(Wrapped) -> A>(self, mut fold_layer: F) -> A {
@@ -106,7 +106,7 @@ where
         for (idx, node) in self.elems.into_iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
-                let node = node.fmap(|ArenaIndex(x)| unsafe {
+                let node = node.map_layer(|ArenaIndex(x)| unsafe {
                     let maybe_uninit =
                         std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
                     maybe_uninit.assume_init()
@@ -128,7 +128,7 @@ where
 
 impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, ArenaIndex>
 where
-    &'a U: Functor<A, To = O, Unwrapped = ArenaIndex>,
+    &'a U: MapLayer<A, To = O, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
     fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
@@ -139,7 +139,7 @@ where
         for (idx, node) in self.elems.iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
-                let node = node.fmap(|ArenaIndex(x)| unsafe {
+                let node = node.map_layer(|ArenaIndex(x)| unsafe {
                     let maybe_uninit =
                         std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
                     maybe_uninit.assume_init()

@@ -1,4 +1,4 @@
-use crate::functor::Functor;
+use crate::map_layer::MapLayer;
 use crate::stack_machine_lazy::unfold_and_fold_annotate_result;
 use futures::future::BoxFuture;
 use futures::FutureExt;
@@ -68,12 +68,12 @@ impl<Out, E> Expr<BoxFuture<'static, Result<Out, E>>> {
     }
 }
 
-impl<A, B> Functor<B> for Expr<A> {
+impl<A, B> MapLayer<B> for Expr<A> {
     type To = Expr<B>;
     type Unwrapped = A;
 
     #[inline(always)]
-    fn fmap<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
         match self {
             Expr::Add(a, b) => Expr::Add(f(a), f(b)),
             Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
