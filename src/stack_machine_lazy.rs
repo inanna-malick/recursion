@@ -1,17 +1,14 @@
 use crate::{
-    map_layer::{MapLayer, Project, CoProject},
+    map_layer::{CoProject, MapLayer, Project},
     Collapse, Expand,
 };
-
-
-
 
 impl<
         // F, a type parameter of kind * -> * that cannot be represented in rust
         Seed: Project<To = GenerateExpr>,
         Out,
         GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
-        ConsumeExpr,                                         // F<Out>
+        ConsumeExpr,                                          // F<Out>
         U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
     > Collapse<Out, ConsumeExpr> for Seed
 {
@@ -25,7 +22,7 @@ impl<
         Seed: Project<To = GenerateExpr>,
         Out: CoProject<From = ConsumeExpr>,
         GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
-        ConsumeExpr,                                         // F<Out>
+        ConsumeExpr,                                          // F<Out>
         U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
     > Expand<Seed, GenerateExpr> for Out
 {
@@ -33,8 +30,6 @@ impl<
         unfold_and_fold(seed, expand_layer, CoProject::coproject)
     }
 }
-
-
 
 // NOTE: can impl recursive over _some seed value_ eg BoxExpr
 // given a _project_ trait to handle the mechanical 'ana' bit
@@ -44,10 +39,10 @@ pub fn unfold_and_fold_result<
     Seed,
     Out,
     GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
-    ConsumeExpr,                                         // F<Out>
+    ConsumeExpr,                                          // F<Out>
     U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<U>
-    Alg: FnMut(ConsumeExpr) -> Result<Out, E>,           // F<Out> -> Result<Out, E>
-    CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,          // Seed -> Result<F<Seed>, E>
+    Alg: FnMut(ConsumeExpr) -> Result<Out, E>,            // F<Out> -> Result<Out, E>
+    CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,           // Seed -> Result<F<Seed>, E>
 >(
     seed: Seed,
     coalg: CoAlg, // Seed -> F<Seed>
@@ -168,7 +163,9 @@ where
                 todo.extend(topush.into_iter());
             }
             State::Annotate(layer) => {
-                let layer2 = layer.clone().map_layer(|_: ()| annotate_vals.pop().unwrap());
+                let layer2 = layer
+                    .clone()
+                    .map_layer(|_: ()| annotate_vals.pop().unwrap());
                 let annotation = annotate(layer2)?;
                 todo.push(State::PostVisit(annotation.clone(), layer));
                 annotate_vals.push(annotation);

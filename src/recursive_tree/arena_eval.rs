@@ -31,7 +31,7 @@ where
         let mut frontier = VecDeque::from([a]);
         let mut elems = vec![];
 
-        // unfold to build a vec of elems while preserving topo order
+        // expand to build a vec of elems while preserving topo order
         while let Some(seed) = frontier.pop_front() {
             let layer = expand_layer(seed);
 
@@ -71,7 +71,7 @@ impl<A, U: Send, O: MapLayer<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, 
             let mut frontier = VecDeque::from([seed]);
             let mut elems = vec![];
 
-            // unfold to build a vec of elems while preserving topo order
+            // expand to build a vec of elems while preserving topo order
             while let Some(seed) = frontier.pop_front() {
                 let layer = generate_layer(seed).await?;
 
@@ -98,7 +98,7 @@ where
     Underlying: MapLayer<A, To = Wrapped, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn collapse_layers<F: FnMut(Wrapped) -> A>(self, mut fold_layer: F) -> A {
+    fn collapse_layers<F: FnMut(Wrapped) -> A>(self, mut collapse_layer: F) -> A {
         let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
             .take(self.elems.len())
             .collect::<Vec<_>>();
@@ -111,7 +111,7 @@ where
                         std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
                     maybe_uninit.assume_init()
                 });
-                fold_layer(node)
+                collapse_layer(node)
             };
             results[idx].write(alg_res);
         }
@@ -131,7 +131,7 @@ where
     &'a U: MapLayer<A, To = O, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
+    fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {
         let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
             .take(self.elems.len())
             .collect::<Vec<_>>();
@@ -144,7 +144,7 @@ where
                         std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
                     maybe_uninit.assume_init()
                 });
-                fold_layer(node)
+                collapse_layer(node)
             };
             results[idx].write(alg_res);
         }

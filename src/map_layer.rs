@@ -3,9 +3,10 @@
 /// producing a value 'To' such 'To' is 'Layer<B>'.
 ///
 /// The function provided to map_layer MUST be strictly applied.
-pub trait MapLayer<B> { // where Self = Layer<A>
+pub trait MapLayer<B> {
+    // where Self = Layer<A>
     type Unwrapped; // A
-    type To;        // Layer<B>
+    type To; // Layer<B>
     /// Additional constraint not present in haskell, req'd for stack machine eval:
     ///   for any F<A>, F<B>, etc, where all structure but B/A is identical,
     ///   fmap must visit nodes in the same order each time it is called
