@@ -7,7 +7,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::map_layer::MapLayer;
-use crate::recursive::{Collapse, Expand, ExpandAsync};
+use crate::recursive::{Collapse, CollapseWithSubStructure, Expand, ExpandAsync};
 use crate::recursive_tree::{RecursiveTree, RecursiveTreeRef};
 
 /// Used to mark structures stored in an 'RecursiveTree<Layer<ArenaIndex>, ArenaIndex>'
@@ -20,6 +20,35 @@ pub struct ArenaIndex(usize);
 impl ArenaIndex {
     fn head() -> Self {
         ArenaIndex(0)
+    }
+}
+
+#[derive(Debug)]
+pub struct RecursiveTreeRefWithOffset<'a, Wrapped> {
+    recursive_tree: RecursiveTreeRef<'a, Wrapped, ArenaIndex>,
+    offset: usize, // arena index offset
+}
+
+pub trait Head<'a, Unwrapped> {
+    fn head(&'a self) -> Unwrapped;
+}
+
+impl<'a, Wrapped, Unwrapped> Head<'a, Unwrapped> for RecursiveTree<Wrapped, ArenaIndex>
+where
+    &'a Wrapped: MapLayer<RecursiveTreeRefWithOffset<'a, Wrapped>, Unwrapped = ArenaIndex, To = Unwrapped>
+        + 'a,
+    Unwrapped: 'a,
+{
+    // self -> Layer<RecursiveTreeRef>
+    fn head(&'a self) -> Unwrapped {
+        let head = &self.elems[0]; // invariant: always present
+        head.map_layer(|idx| RecursiveTreeRefWithOffset {
+            recursive_tree: RecursiveTreeRef {
+                elems: &self.elems[idx.0..],
+                _underlying: std::marker::PhantomData,
+            },
+            offset: idx.0,
+        })
     }
 }
 
@@ -126,22 +155,84 @@ where
     }
 }
 
-impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, ArenaIndex>
+// TODO: provide cache not just substructure? yes
+impl<'a, A, Wrapped, Underlying> CollapseWithSubStructure<'a, A, Wrapped>
+    for RecursiveTreeRef<'a, Underlying, ArenaIndex>
 where
-    &'a U: MapLayer<A, To = O, Unwrapped = ArenaIndex>,
+    &'a Underlying: MapLayer<
+        (&'a A, RecursiveTreeRefWithOffset<'a, Underlying>),
+        To = Wrapped,
+        Unwrapped = ArenaIndex,
+    >,
+    A: 'a,
+    Wrapped: 'a,
+    Underlying: 'a,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {
-        let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
+    fn collapse_layers_2<F: FnMut(Wrapped) -> &'a A>(&self, mut collapse_layer: F) -> &'a A {
+        let mut results = std::iter::repeat_with(|| None)
             .take(self.elems.len())
             .collect::<Vec<_>>();
 
         for (idx, node) in self.elems.iter().enumerate().rev() {
             let alg_res = {
                 // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
+                let node = node.map_layer(|ArenaIndex(x)| {
+                    // TODO: get ref instead of remove
+                    let maybe = results.get(x);
+
+                    // TODO: outside of unsafe block
+                    let substructure = RecursiveTreeRefWithOffset {
+                        recursive_tree: RecursiveTreeRef {
+                            elems: &self.elems[x..],
+                            _underlying: std::marker::PhantomData,
+                        },
+                        offset: x,
+                    };
+
+                    (maybe.as_ref().unwrap().unwrap(), substructure)
+                });
+                collapse_layer(node)
+            };
+            results[idx] = Some(&alg_res);
+        }
+
+        let maybe = results.get(ArenaIndex::head().0);
+        maybe.unwrap().unwrap()
+    }
+}
+
+impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, ArenaIndex>
+where
+    &'a U: MapLayer<A, To = O, Unwrapped = ArenaIndex>,
+{
+    fn collapse_layers<F: FnMut(O) -> A>(self, collapse_layer: F) -> A {
+        RecursiveTreeRefWithOffset {
+            recursive_tree: self,
+            offset: 0,
+        }
+        .collapse_layers(collapse_layer)
+    }
+}
+
+impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRefWithOffset<'a, U>
+where
+    &'a U: MapLayer<A, To = O, Unwrapped = ArenaIndex>,
+{
+    // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
+    fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {
+        let mut results = std::iter::repeat_with(|| MaybeUninit::<A>::uninit())
+            .take(self.recursive_tree.elems.len())
+            .collect::<Vec<_>>();
+
+        for (idx, node) in self.recursive_tree.elems.iter().enumerate().rev() {
+            let alg_res = {
+                // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
                 let node = node.map_layer(|ArenaIndex(x)| unsafe {
-                    let maybe_uninit =
-                        std::mem::replace(results.get_unchecked_mut(x), MaybeUninit::uninit());
+                    let maybe_uninit = std::mem::replace(
+                        results.get_unchecked_mut(x - self.offset),
+                        MaybeUninit::uninit(),
+                    );
                     maybe_uninit.assume_init()
                 });
                 collapse_layer(node)

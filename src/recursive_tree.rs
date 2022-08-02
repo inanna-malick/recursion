@@ -14,8 +14,8 @@ pub struct RecursiveTree<Wrapped, Index> {
     _underlying: std::marker::PhantomData<Index>,
 }
 
-impl<'a, F, U> RecursiveTree<F, U> {
-    pub fn as_ref(&'a self) -> RecursiveTreeRef<'a, F, U> {
+impl<'a, Wrapped, Index> RecursiveTree<Wrapped, Index> {
+    pub fn as_ref(&'a self) -> RecursiveTreeRef<'a, Wrapped, Index> {
         RecursiveTreeRef {
             elems: &self.elems[..],
             _underlying: self._underlying,
@@ -27,6 +27,7 @@ impl<'a, F, U> RecursiveTree<F, U> {
 /// where `Index` is the type that `Layer` is parameterized over and `Wrapped` is `Layer<Index>`
 ///
 /// Stored as a flat vector of layers in topological order.
+#[derive(Debug)]
 pub struct RecursiveTreeRef<'a, Wrapped, Index> {
     elems: &'a [Wrapped],
     // the index type over which 'Layer' is parameterized

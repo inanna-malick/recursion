@@ -2,6 +2,7 @@ use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
+use crate::recursive_tree::arena_eval::Head;
 use crate::stack_machine_lazy::{unfold_and_fold, unfold_and_fold_result};
 #[cfg(test)]
 use crate::{
@@ -117,5 +118,14 @@ proptest! {
         assert_eq!(simple, lazy_eval_new);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
+
+        let arena_indexed_expr_tree =
+          BlocAllocExpr::expand_layers(&expr, generate_layer);
+        let head  = arena_indexed_expr_tree.head();
+        let eval_head_and_layer_res =
+        eval_layer(head.map_layer(|layer| {
+            layer.collapse_layers(eval_layer)
+        }));
+        assert_eq!(simple, eval_head_and_layer_res);
     }
 }
