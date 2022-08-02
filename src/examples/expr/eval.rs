@@ -2,13 +2,14 @@ use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
-use crate::recursive_tree::arena_eval::Head;
+use crate::recursive_tree::arena_eval::{Head, RecursiveTreeRefWithOffsetAndContext};
+use crate::recursive_tree::ArenaIndex;
 use crate::stack_machine_lazy::{unfold_and_fold, unfold_and_fold_result};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
     examples::expr::{BlocAllocExpr, DFSStackExpr},
-    recursive::{Collapse, Expand},
+    recursive::*,
 };
 #[cfg(test)]
 use proptest::prelude::*;
@@ -76,6 +77,22 @@ pub fn eval_compiled(expr: CompiledExpr<i64>) -> i64 {
 }
 
 #[inline(always)]
+pub fn eval_layer_annotated<'a>(
+    node: Expr<(
+        i64,
+        RecursiveTreeRefWithOffsetAndContext<'a, Expr<ArenaIndex>, i64>,
+    )>,
+) -> i64 {
+    println!("annotated: {:?}", node);
+    match node {
+        Expr::Add(a, b) => a.0 + b.0,
+        Expr::Sub(a, b) => a.0 - b.0,
+        Expr::Mul(a, b) => a.0 * b.0,
+        Expr::LiteralInt(x) => x,
+    }
+}
+
+#[inline(always)]
 pub fn eval_layer(node: Expr<i64>) -> i64 {
     match node {
         Expr::Add(a, b) => a + b,
@@ -103,7 +120,8 @@ pub fn eval_lazy(expr: &ExprAST) -> i64 {
 proptest! {
     #[test]
     fn expr_eval(expr in arb_expr()) {
-        // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
+        // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop
+        // instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let simple = naive_eval(&expr);
         let dfs_stack_eval = DFSStackExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
         let bloc_alloc_eval = BlocAllocExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
@@ -127,5 +145,9 @@ proptest! {
             layer.collapse_layers(eval_layer)
         }));
         assert_eq!(simple, eval_head_and_layer_res);
+
+        // TODO: build specific tree to test this over I guess lol? until then proptest + induced panic
+        let lmao = arena_indexed_expr_tree.as_ref().collapse_layers_2(eval_layer_annotated);
+
     }
 }

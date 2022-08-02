@@ -34,7 +34,7 @@ impl<A, B> MapLayer<B> for Expr<A> {
     }
 }
 
-// this is, like, basically fine? - just usize and ()
+// this is, like, basically fine? - just usize and (). could also have expr ref type but ehhh, just i64's rn
 impl<'a, A: Copy, B: 'a> MapLayer<B> for &'a Expr<A> {
     type To = Expr<B>;
     type Unwrapped = A;

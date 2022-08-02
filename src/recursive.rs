@@ -10,8 +10,12 @@ pub trait Collapse<A, Wrapped> {
 }
 
 /// Support for collapsing a structure into a single value, one layer at a time, with cached previous values
-pub trait CollapseWithSubStructure<'a, A, Wrapped> {
-    fn collapse_layers_2<F: FnMut(Wrapped) -> &'a A>(&self, collapse_layer: F) -> &'a A;
+pub trait CollapseWithSubStructure<'a, A: 'a, Wrapped> {
+    fn collapse_layers_2<F: FnMut(Wrapped) -> A>(&self, collapse_layer: F) -> A;
+}
+
+pub trait CollapseWithContext<'a, A, Wrapped> {
+    fn collapse_layers_3<F: FnMut(Wrapped) -> &'a A>(&self, collapse_layer: F) -> &'a A;
 }
 
 /// Support for expanding a structure from a seed value, one layer at a time

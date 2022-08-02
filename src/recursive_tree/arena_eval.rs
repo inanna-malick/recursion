@@ -7,7 +7,9 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::map_layer::MapLayer;
-use crate::recursive::{Collapse, CollapseWithSubStructure, Expand, ExpandAsync};
+use crate::recursive::{
+    Collapse, CollapseWithContext, CollapseWithSubStructure, Expand, ExpandAsync,
+};
 use crate::recursive_tree::{RecursiveTree, RecursiveTreeRef};
 
 /// Used to mark structures stored in an 'RecursiveTree<Layer<ArenaIndex>, ArenaIndex>'
@@ -17,6 +19,7 @@ use crate::recursive_tree::{RecursiveTree, RecursiveTreeRef};
 #[derive(Debug, Clone, Copy)]
 pub struct ArenaIndex(usize);
 
+// TODO: can I implement the opposite? append single node to recursive struct?
 impl ArenaIndex {
     fn head() -> Self {
         ArenaIndex(0)
@@ -27,6 +30,13 @@ impl ArenaIndex {
 pub struct RecursiveTreeRefWithOffset<'a, Wrapped> {
     recursive_tree: RecursiveTreeRef<'a, Wrapped, ArenaIndex>,
     offset: usize, // arena index offset
+}
+
+#[derive(Debug)]
+pub struct RecursiveTreeRefWithOffsetAndContext<'a, Wrapped, Cached> {
+    recursive_tree: RecursiveTreeRef<'a, Wrapped, ArenaIndex>, // truncated slice w/ head
+    offset: usize,                                             // arena index offset
+    context: &'a [Option<Cached>], // truncated to same point as recursive tree
 }
 
 pub trait Head<'a, Unwrapped> {
@@ -155,22 +165,25 @@ where
     }
 }
 
-// TODO: provide cache not just substructure? yes
+// recurse with context-labeled subtree, lol what lmao how does this compile
 impl<'a, A, Wrapped, Underlying> CollapseWithSubStructure<'a, A, Wrapped>
     for RecursiveTreeRef<'a, Underlying, ArenaIndex>
 where
-    &'a Underlying: MapLayer<
-        (&'a A, RecursiveTreeRefWithOffset<'a, Underlying>),
+    for<'x> &'x Underlying: MapLayer<
+        (
+            &'x A,
+            RecursiveTreeRefWithOffsetAndContext<'x, Underlying, A>,
+        ),
         To = Wrapped,
         Unwrapped = ArenaIndex,
     >,
     A: 'a,
-    Wrapped: 'a,
+    Wrapped: 'a, // Layer<(&A, RecursiveTreeRefWithOffsetAndContext)> -> A
     Underlying: 'a,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn collapse_layers_2<F: FnMut(Wrapped) -> &'a A>(&self, mut collapse_layer: F) -> &'a A {
-        let mut results = std::iter::repeat_with(|| None)
+    fn collapse_layers_2<F: FnMut(Wrapped) -> A>(&self, mut collapse_layer: F) -> A {
+        let mut results: Vec<Option<A>> = std::iter::repeat_with(|| None)
             .take(self.elems.len())
             .collect::<Vec<_>>();
 
@@ -179,26 +192,27 @@ where
                 // each node is only referenced once so just remove it, also we know it's there so unsafe is fine
                 let node = node.map_layer(|ArenaIndex(x)| {
                     // TODO: get ref instead of remove
-                    let maybe = results.get(x);
 
-                    // TODO: outside of unsafe block
-                    let substructure = RecursiveTreeRefWithOffset {
+                    let substructure = RecursiveTreeRefWithOffsetAndContext {
                         recursive_tree: RecursiveTreeRef {
                             elems: &self.elems[x..],
                             _underlying: std::marker::PhantomData,
                         },
                         offset: x,
+                        context: &results[x..],
                     };
 
-                    (maybe.as_ref().unwrap().unwrap(), substructure)
+                    (&results[x].as_ref().unwrap(), substructure)
                 });
                 collapse_layer(node)
             };
-            results[idx] = Some(&alg_res);
+            results[idx] = Some(alg_res);
         }
 
-        let maybe = results.get(ArenaIndex::head().0);
-        maybe.unwrap().unwrap()
+        // doesn't preserve ordering, but at this point we're done and
+        // don't care
+        let mut maybe = results.swap_remove(ArenaIndex::head().0);
+        maybe.take().unwrap()
     }
 }
 
@@ -247,5 +261,35 @@ where
             );
             maybe_uninit.assume_init()
         }
+    }
+}
+
+impl<'a, A: 'a, Cached, Wrapped: 'a, U> CollapseWithContext<'a, A, Wrapped>
+    for RecursiveTreeRefWithOffsetAndContext<'a, U, Cached>
+where
+    &'a U: MapLayer<(&'a Cached, &'a A), To = Wrapped, Unwrapped = ArenaIndex>,
+{
+    // TODO: starting with low-perf option vec for correctness
+    fn collapse_layers_3<F: FnMut(Wrapped) -> &'a A>(&self, mut collapse_layer: F) -> &'a A {
+        let mut results: Vec<Option<&'a A>> = std::iter::repeat_with(|| None)
+            .take(self.recursive_tree.elems.len())
+            .collect::<Vec<_>>();
+
+        for (idx, node) in self.recursive_tree.elems.iter().enumerate().rev() {
+            let alg_res: &'a A = {
+                let node = node.map_layer(|ArenaIndex(x)| {
+                    let res: &'a A = results.get(x - self.offset).unwrap().unwrap();
+
+                    let cached: &'a Cached =
+                        &self.context.get(x - self.offset).unwrap().as_ref().unwrap();
+
+                    (cached, res)
+                });
+                collapse_layer(node)
+            };
+            results[idx - self.offset] = Some(alg_res);
+        }
+
+        results.get(ArenaIndex::head().0).unwrap().unwrap()
     }
 }
