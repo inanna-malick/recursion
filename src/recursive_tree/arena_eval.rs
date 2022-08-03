@@ -191,12 +191,12 @@ where
         To = Wrapped,
         Unwrapped = ArenaIndex,
     >,
-    A: 'a + Copy, // TODO: remove copy or w/e, eventually
-    Wrapped: 'a, // Layer<(&A, RecursiveTreeRefWithOffsetAndContext)> -> A
+    A: 'a,
+    Wrapped: 'a, // Layer<(&A, RecursiveTreeRefWithOffset)> -> A
     Underlying: 'a,
 {
-    // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
-    fn collapse_layers_2<F: FnMut(Wrapped) -> A>(&self, mut collapse_layer: F) -> A {
+
+    fn paramorphism<F: FnMut(Wrapped) -> A>(&self, mut collapse_layer: F) -> A {
         let mut results: Vec<Option<A>> = std::iter::repeat_with(|| None)
             .take(self.elems.len())
             .collect::<Vec<_>>();
@@ -215,7 +215,8 @@ where
                         offset: x,
                     };
 
-                    (results[x].unwrap(), substructure)
+                    // results only used once, will need some fancy bullshit for histomorphism tho
+                    (results[x].take().unwrap(), substructure)
                 });
                 collapse_layer(node)
             };

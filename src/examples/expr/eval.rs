@@ -114,16 +114,37 @@ pub fn eval_lazy(expr: &ExprAST) -> i64 {
     unfold_and_fold(expr, generate_layer, eval_layer)
 }
 
+fn pretty_print(expr: &ExprAST) -> String {
+        let arena_indexed_expr_tree =
+          BlocAllocExpr::expand_layers(expr, generate_layer);
+
+          arena_indexed_expr_tree.as_ref().paramorphism(|layer| {
+
+            match layer {
+                Expr::Add((a_res, a), (b_res, b)) => match (a.head(), b.head()) {
+                    (_, Expr::LiteralInt(_)) => a_res,
+                    (Expr::LiteralInt(0), _) => b_res,
+                    _ => format!("ADD({} + {})", a_res, b_res),
+                },
+                Expr::Sub((a_res, _), (b_res, _)) => format!("SUB({} + {})", a_res, b_res),
+                Expr::Mul((a_res, _), (b_res, _)) => format!("MUL({} + {})", a_res, b_res),
+                Expr::LiteralInt(x) => format!("LIT({:?})", x),
+            }
+          })
+}
+
+
 fn eval_with_substructure(expr: &ExprAST) -> i64 {
         let arena_indexed_expr_tree =
           BlocAllocExpr::expand_layers(expr, generate_layer);
 
 
-          arena_indexed_expr_tree.as_ref().collapse_layers_2(|layer| {
+          // arbitrary error 
+          arena_indexed_expr_tree.as_ref().paramorphism(|layer| {
             println!("full layer with context: {:?}", layer);
             match &layer {
                 Expr::Add((_, a), (_, b)) => match (a.head(), b.head()) {
-                    (Expr::Add(_, _), Expr::Sub(_, _)) => panic!("lmao why not"),
+                    (Expr::LiteralInt(0), _) => panic!("lmao why not"),
                     _ => (),
                 },
                 _ => (),
@@ -164,12 +185,13 @@ proptest! {
         }));
         assert_eq!(simple, eval_head_and_layer_res);
 
+        println!("raw: {:?}", &expr);
+        println!("pretty print res: {}", pretty_print(&expr));
 
-        let lmao = eval_with_substructure(&expr);
-        assert_eq!(simple, lmao);
+        // commented out b/c will always fail due to deliberate panic case
+        // let lmao = eval_with_substructure(&expr);
+        // assert_eq!(simple, lmao);
 
-        // TODO: build specific tree to test this over I guess lol? until then proptest + induced panic
-        // let lmao = arena_indexed_expr_tree.as_ref().collapse_layers_2(eval_layer_annotated);
 
     }
 }

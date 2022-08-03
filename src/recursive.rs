@@ -11,7 +11,7 @@ pub trait Collapse<A, Wrapped> {
 
 /// Support for collapsing a structure into a single value, one layer at a time, with cached previous values
 pub trait CollapseWithSubStructure<'a, A: 'a, Wrapped> {
-    fn collapse_layers_2<F: FnMut(Wrapped) -> A>(&self, collapse_layer: F) -> A;
+    fn paramorphism<F: FnMut(Wrapped) -> A>(&self, collapse_layer: F) -> A;
 }
 
 /// Support for expanding a structure from a seed value, one layer at a time

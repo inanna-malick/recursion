@@ -7,3 +7,4 @@
 cc e0b2975a77ec952a531cd03a9149c10afa94fa800c43c3f7e493575127ef9183 # shrinks to (expr, db_state) = (Sub(LiteralInt(0), LiteralInt(1)), {})
 cc d86ddabb1d6dd65fc7abf86682d749da782bbb80e02fef0f318443a504c9345e # shrinks to expr = Sub(Add(Add(LiteralInt(0), LiteralInt(0)), LiteralInt(0)), LiteralInt(0))
 cc 33efdaad0a7b3415c6150749eb478e3d1bd8cd382c828038241e3e9109450b76 # shrinks to expr = Add(Add(LiteralInt(0), LiteralInt(0)), Sub(LiteralInt(0), LiteralInt(0)))
+cc bcb51f14cd654b26d069d408dc13fd9e2cbbe20b72e4c6f8f10509e41244e447 # shrinks to expr = Sub(Add(LiteralInt(0), LiteralInt(0)), LiteralInt(0))
