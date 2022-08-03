@@ -2,8 +2,7 @@ use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
-use crate::recursive_tree::arena_eval::{Head, RecursiveTreeRefWithOffsetAndContext};
-use crate::recursive_tree::ArenaIndex;
+use crate::recursive_tree::arena_eval::{Head};
 use crate::stack_machine_lazy::{unfold_and_fold, unfold_and_fold_result};
 #[cfg(test)]
 use crate::{
@@ -76,21 +75,21 @@ pub fn eval_compiled(expr: CompiledExpr<i64>) -> i64 {
     }
 }
 
-#[inline(always)]
-pub fn eval_layer_annotated<'a>(
-    node: Expr<(
-        i64,
-        RecursiveTreeRefWithOffsetAndContext<'a, Expr<ArenaIndex>, i64>,
-    )>,
-) -> i64 {
-    println!("annotated: {:?}", node);
-    match node {
-        Expr::Add(a, b) => a.0 + b.0,
-        Expr::Sub(a, b) => a.0 - b.0,
-        Expr::Mul(a, b) => a.0 * b.0,
-        Expr::LiteralInt(x) => x,
-    }
-}
+// #[inline(always)]
+// pub fn eval_layer_annotated<'a>(
+//     node: Expr<(
+//         i64,
+//         RecursiveTreeRefWithOffsetAndContext<'a, Expr<ArenaIndex>, i64>,
+//     )>,
+// ) -> i64 {
+//     println!("annotated: {:?}", node);
+//     match node {
+//         Expr::Add(a, b) => a.0 + b.0,
+//         Expr::Sub(a, b) => a.0 - b.0,
+//         Expr::Mul(a, b) => a.0 * b.0,
+//         Expr::LiteralInt(x) => x,
+//     }
+// }
 
 #[inline(always)]
 pub fn eval_layer(node: Expr<i64>) -> i64 {
@@ -114,6 +113,25 @@ pub fn naive_eval(expr: &ExprAST) -> i64 {
 pub fn eval_lazy(expr: &ExprAST) -> i64 {
     unfold_and_fold(expr, generate_layer, eval_layer)
 }
+
+fn eval_with_substructure(expr: &ExprAST) -> i64 {
+        let arena_indexed_expr_tree =
+          BlocAllocExpr::expand_layers(expr, generate_layer);
+
+
+          arena_indexed_expr_tree.as_ref().collapse_layers_2(|layer| {
+            println!("full layer with context: {:?}", layer);
+            match &layer {
+                Expr::Add((_, a), (_, b)) => match (a.head(), b.head()) {
+                    (Expr::Add(_, _), Expr::Sub(_, _)) => panic!("lmao why not"),
+                    _ => (),
+                },
+                _ => (),
+            };
+            eval_layer(layer.map_layer(|(x, _)| x))
+          })
+}
+
 
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
@@ -146,8 +164,12 @@ proptest! {
         }));
         assert_eq!(simple, eval_head_and_layer_res);
 
+
+        let lmao = eval_with_substructure(&expr);
+        assert_eq!(simple, lmao);
+
         // TODO: build specific tree to test this over I guess lol? until then proptest + induced panic
-        let lmao = arena_indexed_expr_tree.as_ref().collapse_layers_2(eval_layer_annotated);
+        // let lmao = arena_indexed_expr_tree.as_ref().collapse_layers_2(eval_layer_annotated);
 
     }
 }

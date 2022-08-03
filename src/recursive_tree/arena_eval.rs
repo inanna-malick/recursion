@@ -8,7 +8,7 @@ use futures::FutureExt;
 
 use crate::map_layer::MapLayer;
 use crate::recursive::{
-    Collapse, CollapseWithContext, CollapseWithSubStructure, Expand, ExpandAsync,
+    Collapse, CollapseWithSubStructure, Expand, ExpandAsync,
 };
 use crate::recursive_tree::{RecursiveTree, RecursiveTreeRef};
 
@@ -32,13 +32,6 @@ pub struct RecursiveTreeRefWithOffset<'a, Wrapped> {
     offset: usize, // arena index offset
 }
 
-#[derive(Debug)]
-pub struct RecursiveTreeRefWithOffsetAndContext<'a, Wrapped, Cached> {
-    recursive_tree: RecursiveTreeRef<'a, Wrapped, ArenaIndex>, // truncated slice w/ head
-    offset: usize,                                             // arena index offset
-    context: &'a [Option<Cached>], // truncated to same point as recursive tree
-}
-
 pub trait Head<'a, Unwrapped> {
     fn head(&'a self) -> Unwrapped;
 }
@@ -58,6 +51,27 @@ where
                 _underlying: std::marker::PhantomData,
             },
             offset: idx.0,
+        })
+    }
+}
+
+
+
+impl<'a, Wrapped, Unwrapped> Head<'a, Unwrapped> for RecursiveTreeRefWithOffset<'a, Wrapped>
+where
+    &'a Wrapped: MapLayer<RecursiveTreeRefWithOffset<'a, Wrapped>, Unwrapped = ArenaIndex, To = Unwrapped>
+        + 'a,
+    Unwrapped: 'a,
+{
+    // self -> Layer<RecursiveTreeRef>
+    fn head(&'a self) -> Unwrapped {
+        let head = &self.recursive_tree.elems[0]; // invariant: always present
+        head.map_layer(|idx| RecursiveTreeRefWithOffset {
+            recursive_tree: RecursiveTreeRef {
+                elems: &self.recursive_tree.elems[(idx.0 - self.offset)..],
+                _underlying: std::marker::PhantomData,
+            },
+            offset: idx.0 + self.offset,
         })
     }
 }
@@ -169,15 +183,15 @@ where
 impl<'a, A, Wrapped, Underlying> CollapseWithSubStructure<'a, A, Wrapped>
     for RecursiveTreeRef<'a, Underlying, ArenaIndex>
 where
-    for<'x> &'x Underlying: MapLayer<
+    &'a Underlying: MapLayer<
         (
-            &'x A,
-            RecursiveTreeRefWithOffsetAndContext<'x, Underlying, A>,
+            A,
+            RecursiveTreeRefWithOffset<'a, Underlying>,
         ),
         To = Wrapped,
         Unwrapped = ArenaIndex,
     >,
-    A: 'a,
+    A: 'a + Copy, // TODO: remove copy or w/e, eventually
     Wrapped: 'a, // Layer<(&A, RecursiveTreeRefWithOffsetAndContext)> -> A
     Underlying: 'a,
 {
@@ -193,16 +207,15 @@ where
                 let node = node.map_layer(|ArenaIndex(x)| {
                     // TODO: get ref instead of remove
 
-                    let substructure = RecursiveTreeRefWithOffsetAndContext {
+                    let substructure = RecursiveTreeRefWithOffset {
                         recursive_tree: RecursiveTreeRef {
                             elems: &self.elems[x..],
                             _underlying: std::marker::PhantomData,
                         },
                         offset: x,
-                        context: &results[x..],
                     };
 
-                    (&results[x].as_ref().unwrap(), substructure)
+                    (results[x].unwrap(), substructure)
                 });
                 collapse_layer(node)
             };
@@ -261,35 +274,5 @@ where
             );
             maybe_uninit.assume_init()
         }
-    }
-}
-
-impl<'a, A: 'a, Cached, Wrapped: 'a, U> CollapseWithContext<'a, A, Wrapped>
-    for RecursiveTreeRefWithOffsetAndContext<'a, U, Cached>
-where
-    &'a U: MapLayer<(&'a Cached, &'a A), To = Wrapped, Unwrapped = ArenaIndex>,
-{
-    // TODO: starting with low-perf option vec for correctness
-    fn collapse_layers_3<F: FnMut(Wrapped) -> &'a A>(&self, mut collapse_layer: F) -> &'a A {
-        let mut results: Vec<Option<&'a A>> = std::iter::repeat_with(|| None)
-            .take(self.recursive_tree.elems.len())
-            .collect::<Vec<_>>();
-
-        for (idx, node) in self.recursive_tree.elems.iter().enumerate().rev() {
-            let alg_res: &'a A = {
-                let node = node.map_layer(|ArenaIndex(x)| {
-                    let res: &'a A = results.get(x - self.offset).unwrap().unwrap();
-
-                    let cached: &'a Cached =
-                        &self.context.get(x - self.offset).unwrap().as_ref().unwrap();
-
-                    (cached, res)
-                });
-                collapse_layer(node)
-            };
-            results[idx - self.offset] = Some(alg_res);
-        }
-
-        results.get(ArenaIndex::head().0).unwrap().unwrap()
     }
 }
