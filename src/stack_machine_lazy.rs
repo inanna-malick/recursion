@@ -5,48 +5,42 @@ use crate::{
 
 impl<
         // F, a type parameter of kind * -> * that cannot be represented in rust
-        Seed: Project<To = GenerateExpr>,
+        Seed: Project<To = Expandable>,
         Out,
-        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
-        ConsumeExpr,                                          // F<Out>
-        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
-    > Collapse<Out, ConsumeExpr> for Seed
+        Expandable: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
+        Collapsable,                                          // F<Out>
+        U: MapLayer<Out, To = Collapsable, Unwrapped = ()>,   // F<()>
+    > Collapse<Out, Collapsable> for Seed
 {
-    fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
+    fn collapse_layers<F: FnMut(Collapsable) -> Out>(self, collapse_layer: F) -> Out {
         unfold_and_fold(self, Project::project, collapse_layer)
     }
 }
 
 impl<
         // F, a type parameter of kind * -> * that cannot be represented in rust
-        Seed: Project<To = GenerateExpr>,
-        Out: CoProject<From = ConsumeExpr>,
-        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
-        ConsumeExpr,                                          // F<Out>
-        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<()>
-    > Expand<Seed, GenerateExpr> for Out
+        Seed: Project<To = Expandable>,
+        Out: CoProject<From = Collapsable>,
+        Expandable: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
+        Collapsable,                                          // F<Out>
+        U: MapLayer<Out, To = Collapsable, Unwrapped = ()>,   // F<()>
+    > Expand<Seed, Expandable> for Out
 {
-    fn expand_layers<F: Fn(Seed) -> GenerateExpr>(seed: Seed, expand_layer: F) -> Self {
+    fn expand_layers<F: Fn(Seed) -> Expandable>(seed: Seed, expand_layer: F) -> Self {
         unfold_and_fold(seed, expand_layer, CoProject::coproject)
     }
 }
 
-// NOTE: can impl recursive over _some seed value_ eg BoxExpr
-// given a _project_ trait to handle the mechanical 'ana' bit
-pub fn unfold_and_fold_result<
-    // F, a type parameter of kind * -> * that cannot be represented in rust
-    E,
-    Seed,
-    Out,
-    GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
-    ConsumeExpr,                                          // F<Out>
-    U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<U>
->(
+/// Build a state machine by simultaneously expanding a seed into some structure and consuming that structure from the leaves down. 
+/// Uses 'Result' to handle early termination
+pub fn unfold_and_fold_result<Seed, Expandable, Collapsable, Out, E>(
     seed: Seed,
-    coalg: impl Fn(Seed) -> Result<GenerateExpr, E>, // Seed -> Result<F<Seed>, E>
-    mut alg: impl FnMut(ConsumeExpr) -> Result<Out, E>, // F<Out> -> Result<Out, E>
+    mut coalg: impl FnMut(Seed) -> Result<Expandable, E>,
+    mut alg: impl FnMut(Collapsable) -> Result<Out, E>,
 ) -> Result<Out, E>
 where
+    Expandable: MapLayer<(), Unwrapped = Seed>,
+    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable>,
 {
     enum State<Pre, Post> {
         PreVisit(Pre),
@@ -54,7 +48,7 @@ where
     }
 
     let mut vals: Vec<Out> = vec![];
-    let mut todo: Vec<State<Seed, U>> = vec![State::PreVisit(seed)];
+    let mut todo: Vec<State<Seed, _>> = vec![State::PreVisit(seed)];
 
     while let Some(item) = todo.pop() {
         match item {
@@ -76,35 +70,16 @@ where
     Ok(vals.pop().unwrap())
 }
 
-// ideal type params: Seed, GenerateExpr, ConsumeExpr, Out
-// a bit overconstrained but useful, allows spec'ing enough for end user to understand
 
-// implicit:
-// Layer (* -> *)
-
-// given:
-// GenerateExpr: Layer<Seed>
-// ConsumeExpr: Layer<Seed>
-// Out
-
-// infered:
-// Seed
-// ConsumeExpr: Layer<Out>
-// Underlying: Layer<()> (impl detail)
-pub fn unfold_and_fold<Seed, GenerateExpr, ConsumeExpr, Out>(
-    // Seed
+/// Build a state machine by simultaneously expanding a seed into some structure and consuming that structure from the leaves down
+pub fn unfold_and_fold<Seed, Expandable, Collapsable, Out>(
     seed: Seed,
-    // Seed -> Layer<Seed>
-    mut coalg: impl FnMut(Seed) -> GenerateExpr,
-    // Layer<Out> -> Seed
-    mut alg: impl FnMut(
-        // ConsumeExpr
-        <<GenerateExpr as MapLayer<()>>::To as MapLayer<Out>>::To,
-    ) -> Out,
+    mut coalg: impl FnMut(Seed) -> Expandable,
+    mut alg: impl FnMut(Collapsable) -> Out,
 ) -> Out
 where
-    GenerateExpr: MapLayer<(), Unwrapped = Seed>,
-    <GenerateExpr as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = ConsumeExpr>,
+    Expandable: MapLayer<(), Unwrapped = Seed>,
+    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable>,
 {
     enum State<Pre, Post> {
         PreVisit(Pre),
@@ -133,52 +108,15 @@ where
     vals.pop().unwrap()
 }
 
-// pub fn unfold_and_fold<GenerateExpr, Out>(
-//     // Seed
-//     seed: GenerateExpr::Unwrapped,
-//     // Seed -> Layer<Seed>
-//     mut coalg: impl FnMut(GenerateExpr::Unwrapped) -> GenerateExpr,
-//     // Layer<Out> -> Seed
-//     mut alg: impl FnMut(<<GenerateExpr as MapLayer<()>>::To as MapLayer<Out>>::To) -> Out,
-// ) -> Out
-// where
-//     GenerateExpr: MapLayer<()>,
-//     <GenerateExpr as MapLayer<()>>::To: MapLayer<Out, Unwrapped = ()>,
-// {
-//     enum State<Pre, Post> {
-//         PreVisit(Pre),
-//         PostVisit(Post),
-//     }
 
-//     let mut vals: Vec<Out> = vec![];
-//     let mut todo: Vec<State<_, _>> = vec![State::PreVisit(seed)];
-
-//     while let Some(item) = todo.pop() {
-//         match item {
-//             State::PreVisit(seed) => {
-//                 let node = coalg(seed);
-//                 let mut topush = Vec::new();
-//                 let node = node.map_layer(|seed| topush.push(State::PreVisit(seed)));
-
-//                 todo.push(State::PostVisit(node));
-//                 todo.extend(topush.into_iter());
-//             }
-//             State::PostVisit(node) => {
-//                 let node = node.map_layer(|_: ()| vals.pop().unwrap());
-//                 vals.push(alg(node))
-//             }
-//         };
-//     }
-//     vals.pop().unwrap()
-// }
-
+/// this function is 'spooky' and has a 'terrifying type signature'. It will likely change multiple times before being finalized
 pub fn unfold_and_fold_annotate_result<
     E,
     Seed,
     Out,
     Annotation,
-    GenerateExpr,
-    ConsumeExpr,
+    Expandable,
+    Collapsable,
     AnnotateExpr,
     U1,
     Alg,
@@ -192,13 +130,13 @@ pub fn unfold_and_fold_annotate_result<
 ) -> Result<Out, E>
 where
     Annotation: Clone,
-    GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U1>,
+    Expandable: MapLayer<(), Unwrapped = Seed, To = U1>,
     U1: Clone,
     U1: MapLayer<Annotation, To = AnnotateExpr, Unwrapped = ()>,
-    U1: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,
-    Alg: FnMut(Annotation, ConsumeExpr) -> Result<Out, E>,
+    U1: MapLayer<Out, To = Collapsable, Unwrapped = ()>,
+    Alg: FnMut(Annotation, Collapsable) -> Result<Out, E>,
     Annotate: FnMut(AnnotateExpr) -> Result<Annotation, E>,
-    CoAlg: FnMut(Seed) -> Result<GenerateExpr, E>,
+    CoAlg: FnMut(Seed) -> Result<Expandable, E>,
 {
     enum State<Pre, Annotation, Post> {
         PreVisit(Pre),
