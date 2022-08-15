@@ -109,6 +109,110 @@ where
 }
 
 
+#[derive(Debug, Clone, Copy)]
+// shortcircuit if a given subnode of this node returns 'on', returning value 'and_return' from this node immediately
+pub struct ShortCircuit<A> {
+    pub on: A,
+    pub rtrn: A,
+}
+
+
+// motivation: early termination (eg &&, either branch is true no need to eval other branch)
+// since early termination logic flows from the root downwards and evaluation flows from the leaves
+// up, we register the early termination logic while building the state machine and use it while collapsing it
+pub fn unfold_and_fold_early_termination<Seed, Expandable, Collapsable, Out>(
+    seed: Seed,
+    coalg: impl Fn(Seed) -> Expandable, // Seed   -> F<(Seed, Option<ShortCircuit<Out>)>
+    mut alg: impl FnMut(Collapsable) -> Out, // F<Out> -> Out
+) -> Out
+where
+    Out: PartialEq + Eq,
+    Expandable: MapLayer<(), Unwrapped = (Seed, Option<ShortCircuit<Out>>)>,
+    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable>,
+{
+    struct EarlyTerm<Out> {
+        truncate_todo_to: usize,
+        truncate_vals_to: usize,
+        short_circuit: ShortCircuit<Out>,
+    }
+
+    enum State<Pre, Post, Out> {
+        PreVisit {
+            seed: Pre,
+            early_term: Option<EarlyTerm<Out>>,
+        },
+        PostVisit {
+            node: Post,
+            early_term: Option<EarlyTerm<Out>>,
+        },
+    }
+
+    let mut vals: Vec<Out> = vec![];
+    let mut todo: Vec<State<_, _, Out>> = vec![State::PreVisit {
+        seed,
+        early_term: None,
+    }];
+
+    while let Some(item) = todo.pop() {
+        match item {
+            State::PreVisit { seed, early_term } => {
+                let node = coalg(seed);
+
+                let truncate_todo_to = todo.len();
+                let truncate_vals_to = vals.len();
+
+                let mut topush = Vec::new();
+                let node = node.map_layer(|(seed, sc)| {
+                    let early_term = sc.map(|sc| EarlyTerm {
+                        truncate_todo_to,
+                        truncate_vals_to,
+                        short_circuit: sc,
+                    });
+                    topush.push(State::PreVisit { seed, early_term })
+                });
+
+                todo.push(State::PostVisit { node, early_term });
+                todo.extend(topush.into_iter());
+            }
+            State::PostVisit {
+                early_term:
+                    Some(EarlyTerm {
+                        truncate_todo_to,
+                        truncate_vals_to,
+                        short_circuit,
+                    }),
+                node,
+            } => {
+                let node = node.map_layer(|_: ()| vals.pop().unwrap());
+                let res = alg(node);
+
+                if res == short_circuit.on {
+                    vals.truncate(truncate_vals_to);
+                    todo.truncate(truncate_todo_to);
+                    vals.push(short_circuit.rtrn);
+                } else {
+                    vals.push(res)
+                }
+            }
+            State::PostVisit {
+                early_term: None,
+                node,
+            } => {
+                let node = node.map_layer(|_: ()| vals.pop().unwrap());
+                vals.push(alg(node));
+            }
+        };
+    }
+    vals.pop().unwrap()
+}
+
+
+
+
+// TODO move to 'experimental' module or some shit
+
+
+
 /// this function is 'spooky' and has a 'terrifying type signature'. It will likely change multiple times before being finalized
 pub fn unfold_and_fold_annotate_result<
     E,
