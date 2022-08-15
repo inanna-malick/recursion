@@ -1,9 +1,11 @@
 //! Recursive structure stored using a compact stack machine representation
 //! Collapsed via stack machine evaluation.
 //!
+use std::ops::ControlFlow;
+
 use crate::{
     map_layer::MapLayer,
-    recursive::{Collapse, Expand},
+    recursive::{Collapse, Expand, ExpandCF},
     recursive_tree::{RecursiveTree, RecursiveTreeRef},
 };
 
@@ -42,6 +44,40 @@ impl<A, U, O: MapLayer<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
             elems,
             _underlying: std::marker::PhantomData,
         }
+    }
+}
+
+// TODO: what if this is in the stack machine eval instead of just the expand portion? aha. yes! (mad science voice)
+impl<A, Break, U, O: MapLayer<StackMarker, Unwrapped = A, To = U>> ExpandCF<A, Break, O>
+    for RecursiveTree<U, StackMarker>
+{
+    fn expand_layers_cf<F: Fn(A) -> std::ops::ControlFlow<Break, O>>(
+        a: A,
+        expand_layer: F,
+    ) -> ControlFlow<Break, Self> {
+        let mut frontier = Vec::from([a]);
+        let mut elems = vec![];
+
+        // unfold to build a vec of elems while preserving topo order
+        while let Some(seed) = frontier.pop() {
+            let layer = expand_layer(seed)?;
+
+            let mut topush = Vec::new();
+            let layer = layer.map_layer(|aa| {
+                topush.push(aa);
+                StackMarker
+            });
+            frontier.extend(topush.into_iter().rev());
+
+            elems.push(layer);
+        }
+
+        elems.reverse();
+
+        ControlFlow::Continue(Self {
+            elems,
+            _underlying: std::marker::PhantomData,
+        })
     }
 }
 

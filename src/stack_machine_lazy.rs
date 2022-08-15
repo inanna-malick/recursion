@@ -41,13 +41,13 @@ pub fn unfold_and_fold_result<
     GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
     ConsumeExpr,                                          // F<Out>
     U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // F<U>
-    Alg: FnMut(ConsumeExpr) -> Result<Out, E>,            // F<Out> -> Result<Out, E>
-    CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,           // Seed -> Result<F<Seed>, E>
 >(
     seed: Seed,
-    coalg: CoAlg, // Seed -> F<Seed>
-    mut alg: Alg, // F<Out> -> Out
-) -> Result<Out, E> {
+    coalg: impl Fn(Seed) -> Result<GenerateExpr, E>, // Seed -> Result<F<Seed>, E>
+    mut alg: impl FnMut(ConsumeExpr) -> Result<Out, E>, // F<Out> -> Result<Out, E>
+) -> Result<Out, E>
+where
+{
     enum State<Pre, Post> {
         PreVisit(Pre),
         PostVisit(Post),
@@ -76,16 +76,35 @@ pub fn unfold_and_fold_result<
     Ok(vals.pop().unwrap())
 }
 
-pub fn unfold_and_fold<Seed, Out, GenerateExpr, ConsumeExpr, U, Alg, CoAlg>(
+// ideal type params: Seed, GenerateExpr, ConsumeExpr, Out
+// a bit overconstrained but useful, allows spec'ing enough for end user to understand
+
+// implicit:
+// Layer (* -> *)
+
+// given:
+// GenerateExpr: Layer<Seed>
+// ConsumeExpr: Layer<Seed>
+// Out
+
+// infered:
+// Seed
+// ConsumeExpr: Layer<Out>
+// Underlying: Layer<()> (impl detail)
+pub fn unfold_and_fold<Seed, GenerateExpr, ConsumeExpr, Out>(
+    // Seed
     seed: Seed,
-    coalg: CoAlg, // Seed   -> F<Seed>
-    mut alg: Alg, // F<Out> -> Out
+    // Seed -> Layer<Seed>
+    mut coalg: impl FnMut(Seed) -> GenerateExpr,
+    // Layer<Out> -> Seed
+    mut alg: impl FnMut(
+        // ConsumeExpr
+        <<GenerateExpr as MapLayer<()>>::To as MapLayer<Out>>::To,
+    ) -> Out,
 ) -> Out
 where
-    GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>,
-    U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,
-    Alg: FnMut(ConsumeExpr) -> Out,
-    CoAlg: Fn(Seed) -> GenerateExpr,
+    GenerateExpr: MapLayer<(), Unwrapped = Seed>,
+    <GenerateExpr as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = ConsumeExpr>,
 {
     enum State<Pre, Post> {
         PreVisit(Pre),
@@ -93,7 +112,7 @@ where
     }
 
     let mut vals: Vec<Out> = vec![];
-    let mut todo: Vec<State<_, _>> = vec![State::PreVisit(seed)];
+    let mut todo: Vec<State<Seed, _>> = vec![State::PreVisit(seed)];
 
     while let Some(item) = todo.pop() {
         match item {
@@ -114,6 +133,45 @@ where
     vals.pop().unwrap()
 }
 
+// pub fn unfold_and_fold<GenerateExpr, Out>(
+//     // Seed
+//     seed: GenerateExpr::Unwrapped,
+//     // Seed -> Layer<Seed>
+//     mut coalg: impl FnMut(GenerateExpr::Unwrapped) -> GenerateExpr,
+//     // Layer<Out> -> Seed
+//     mut alg: impl FnMut(<<GenerateExpr as MapLayer<()>>::To as MapLayer<Out>>::To) -> Out,
+// ) -> Out
+// where
+//     GenerateExpr: MapLayer<()>,
+//     <GenerateExpr as MapLayer<()>>::To: MapLayer<Out, Unwrapped = ()>,
+// {
+//     enum State<Pre, Post> {
+//         PreVisit(Pre),
+//         PostVisit(Post),
+//     }
+
+//     let mut vals: Vec<Out> = vec![];
+//     let mut todo: Vec<State<_, _>> = vec![State::PreVisit(seed)];
+
+//     while let Some(item) = todo.pop() {
+//         match item {
+//             State::PreVisit(seed) => {
+//                 let node = coalg(seed);
+//                 let mut topush = Vec::new();
+//                 let node = node.map_layer(|seed| topush.push(State::PreVisit(seed)));
+
+//                 todo.push(State::PostVisit(node));
+//                 todo.extend(topush.into_iter());
+//             }
+//             State::PostVisit(node) => {
+//                 let node = node.map_layer(|_: ()| vals.pop().unwrap());
+//                 vals.push(alg(node))
+//             }
+//         };
+//     }
+//     vals.pop().unwrap()
+// }
+
 pub fn unfold_and_fold_annotate_result<
     E,
     Seed,
@@ -128,7 +186,7 @@ pub fn unfold_and_fold_annotate_result<
     CoAlg,
 >(
     seed: Seed,
-    coalg: CoAlg,           // Seed   -> F<Seed>
+    mut coalg: CoAlg,       // Seed   -> F<Seed>
     mut annotate: Annotate, // F<Annotation> -> Annotation
     mut alg: Alg,           // F<(Annotation, Out)> -> Out
 ) -> Result<Out, E>
@@ -140,7 +198,7 @@ where
     U1: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,
     Alg: FnMut(Annotation, ConsumeExpr) -> Result<Out, E>,
     Annotate: FnMut(AnnotateExpr) -> Result<Annotation, E>,
-    CoAlg: Fn(Seed) -> Result<GenerateExpr, E>,
+    CoAlg: FnMut(Seed) -> Result<GenerateExpr, E>,
 {
     enum State<Pre, Annotation, Post> {
         PreVisit(Pre),
