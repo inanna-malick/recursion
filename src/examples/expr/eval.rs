@@ -2,7 +2,9 @@ use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
-use crate::stack_machine_lazy::{unfold_and_fold, unfold_and_fold_result};
+use crate::stack_machine_lazy::{
+    unfold_and_fold, unfold_and_fold_result, unfold_and_fold_short_circuit, ShortCircuit,
+};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
@@ -97,6 +99,29 @@ pub fn eval_lazy(expr: &ExprAST) -> i64 {
     unfold_and_fold(expr, generate_layer, eval_layer)
 }
 
+pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
+    unfold_and_fold_short_circuit(
+        expr,
+        |e| {
+            let layer = generate_layer(e);
+
+            let sc = if let Expr::Mul(_, _) = layer {
+                Some(ShortCircuit {
+                    short_circuit_on: 0,
+                    return_on_short_circuit: 0,
+                })
+            } else {
+                None
+            };
+
+            let layer = layer.map_layer(|seed| (seed, sc));
+
+            layer
+        },
+        eval_layer,
+    )
+}
+
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
 proptest! {
@@ -108,6 +133,7 @@ proptest! {
         let bloc_alloc_eval = BlocAllocExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
         let lazy_stack_eval = eval_lazy(&expr);
         let lazy_eval_new = expr.collapse_layers(eval_layer);
+        let lazy_eval_et = eval_lazy_et(&expr);
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
 
 
@@ -115,6 +141,7 @@ proptest! {
         assert_eq!(simple, bloc_alloc_eval);
         assert_eq!(simple, lazy_stack_eval);
         assert_eq!(simple, lazy_eval_new);
+        assert_eq!(simple, lazy_eval_et);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }

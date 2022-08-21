@@ -15,6 +15,19 @@ pub trait MapLayer<B> {
     fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To;
 }
 
+pub trait MapLayerRef<B> {
+    // where Self = Layer<A>
+    type Unwrapped; // A
+    type To; // LayerRef<B>
+    /// Additional constraint not present in haskell, req'd for stack machine eval:
+    ///   for any F<A>, F<B>, etc, where all structure but B/A is identical,
+    ///   fmap must visit nodes in the same order each time it is called
+    ///   given that F<B> is created by mapping some function over F<A>
+    ///   note that enforcing this property may be problematic for, Hashmaps/Sets/etc
+    fn map_layer_ref<F: FnMut(Self::Unwrapped) -> B>(&self, f: F) -> Self::To;
+}
+
+
 // basically just From/To but we want something clearly context-specific and, idk, lawful probably
 pub trait Project {
     // A
