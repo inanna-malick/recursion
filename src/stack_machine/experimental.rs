@@ -3,7 +3,7 @@ use crate::{
     Collapse, Expand,
 };
 
-use super::unfold_and_fold;
+use super::expand_and_collapse;
 
 impl<
         // F, a type parameter of kind * -> * that cannot be represented in rust
@@ -15,7 +15,7 @@ impl<
     > Collapse<Out, Collapsable> for Seed
 {
     fn collapse_layers<F: FnMut(Collapsable) -> Out>(self, collapse_layer: F) -> Out {
-        unfold_and_fold(self, Project::project, collapse_layer)
+        expand_and_collapse(self, Project::project, collapse_layer)
     }
 }
 
@@ -29,7 +29,7 @@ impl<
     > Expand<Seed, Expandable> for Out
 {
     fn expand_layers<F: Fn(Seed) -> Expandable>(seed: Seed, expand_layer: F) -> Self {
-        unfold_and_fold(seed, expand_layer, CoProject::coproject)
+        expand_and_collapse(seed, expand_layer, CoProject::coproject)
     }
 }
 /// Used for flow control for short circuiting evaluation for cases like 'false && x'
@@ -54,7 +54,7 @@ pub struct ShortCircuit<A> {
 /// Out: the value that the structure is collapsed into
 /// Expandable: a single layer of expanding structure, of type Layer<Seed>
 /// Collapsable: a single layer of collapsing structure, of type Layer<Out>
-pub fn unfold_and_fold_short_circuit<Seed, Out, Expandable, Collapsable>(
+pub fn expand_and_collapse_short_circuit<Seed, Out, Expandable, Collapsable>(
     seed: Seed,
     coalg: impl Fn(Seed) -> Expandable,
     mut alg: impl FnMut(Collapsable) -> Out,

@@ -3,8 +3,8 @@ use crate::examples::expr::Expr;
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
 #[cfg(any(test, feature = "experimental"))]
-use crate::stack_machine::experimental::{unfold_and_fold_short_circuit, ShortCircuit};
-use crate::stack_machine::{unfold_and_fold, unfold_and_fold_result};
+use crate::stack_machine::experimental::{expand_and_collapse_short_circuit, ShortCircuit};
+use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
@@ -43,7 +43,7 @@ impl<A, B> MapLayer<B> for CompiledExpr<A> {
 type CompileError = &'static str;
 
 pub fn eval_lazy_with_fused_compile(expr: &ExprAST) -> Result<i64, CompileError> {
-    unfold_and_fold_result(
+    expand_and_collapse_result(
         expr,
         |seed| compile(generate_layer(seed)),
         |compiled| Ok(eval_compiled(compiled)),
@@ -96,11 +96,11 @@ pub fn naive_eval(expr: &ExprAST) -> i64 {
 }
 
 pub fn eval_lazy(expr: &ExprAST) -> i64 {
-    unfold_and_fold(expr, generate_layer, eval_layer)
+    expand_and_collapse(expr, generate_layer, eval_layer)
 }
 
 pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
-    unfold_and_fold_short_circuit(
+    expand_and_collapse_short_circuit(
         expr,
         |e| {
             let layer = generate_layer(e);

@@ -13,7 +13,7 @@ use crate::map_layer::MapLayer;
 /// Expandable: a single layer of expanding structure, of type Layer<Seed>
 /// Collapsable: a single layer of collapsing structure, of type Layer<Out>
 /// E: a failure case that results in early termination when encountered
-pub fn unfold_and_fold_result<Seed, Out, Expandable, Collapsable, Error>(
+pub fn expand_and_collapse_result<Seed, Out, Expandable, Collapsable, Error>(
     seed: Seed,
     mut coalg: impl FnMut(Seed) -> Result<Expandable, Error>,
     mut alg: impl FnMut(Collapsable) -> Result<Out, Error>,
@@ -58,7 +58,7 @@ where
 /// Out: the value that the structure is collapsed into
 /// Expandable: a single layer of expanding structure, of type Layer<Seed>
 /// Collapsable: a single layer of collapsing structure, of type Layer<Out>
-pub fn unfold_and_fold<Seed, Out, Expandable, Collapsable>(
+pub fn expand_and_collapse<Seed, Out, Expandable, Collapsable>(
     seed: Seed,
     mut coalg: impl FnMut(Seed) -> Expandable,
     mut alg: impl FnMut(Collapsable) -> Out,
