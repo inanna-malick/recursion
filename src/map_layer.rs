@@ -27,7 +27,7 @@ pub trait MapLayerRef<B> {
     fn map_layer_ref<F: FnMut(Self::Unwrapped) -> B>(&self, f: F) -> Self::To;
 }
 
-
+#[cfg(any(test, feature = "experimental"))]
 // basically just From/To but we want something clearly context-specific and, idk, lawful probably
 pub trait Project {
     // A
@@ -35,6 +35,7 @@ pub trait Project {
     fn project(self) -> Self::To;
 }
 
+#[cfg(any(test, feature = "experimental"))]
 pub trait CoProject {
     // A
     type From; // F<A>

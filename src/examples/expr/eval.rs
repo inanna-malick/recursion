@@ -2,9 +2,9 @@ use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
-use crate::stack_machine_lazy::{
-    unfold_and_fold, unfold_and_fold_result, unfold_and_fold_short_circuit, ShortCircuit,
-};
+#[cfg(any(test, feature = "experimental"))]
+use crate::stack_machine::experimental::{unfold_and_fold_short_circuit, ShortCircuit};
+use crate::stack_machine::{unfold_and_fold, unfold_and_fold_result};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
@@ -114,9 +114,7 @@ pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
                 None
             };
 
-            let layer = layer.map_layer(|seed| (seed, sc));
-
-            layer
+            layer.map_layer(|seed| (seed, sc))
         },
         eval_layer,
     )

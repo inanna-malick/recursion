@@ -7,7 +7,7 @@
 pub mod map_layer;
 pub mod recursive;
 pub mod recursive_tree;
-pub mod stack_machine_lazy;
+pub mod stack_machine;
 // using cfg flag to make expr examples available in a benchmark context
 #[cfg(any(test, feature = "expr_example"))]
 pub mod examples;

@@ -2,8 +2,6 @@ pub mod eval;
 #[cfg(test)]
 pub mod monomorphic;
 pub mod naive;
-#[cfg(test)]
-pub mod typed_eval;
 
 use crate::{
     map_layer::MapLayer,

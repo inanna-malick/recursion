@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 [features]
 default = []
 expr_example = []
+experimental = []
 
 [dependencies]
 futures = "0.3"
@@ -23,4 +24,4 @@ tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", 
 [[bench]]
 name = "expr"
 harness = false
-required-features = ["expr_example"]
+required-features = ["expr_example", "experimental"]
