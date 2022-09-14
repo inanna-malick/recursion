@@ -22,7 +22,7 @@ impl<A, U, O: MapLayer<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
         let mut frontier = Vec::from([a]);
         let mut elems = vec![];
 
-        // unfold to build a vec of elems while preserving topo order
+        // expand to build a vec of elems while preserving topo order
         while let Some(seed) = frontier.pop() {
             let layer = generate_layer(seed);
 
@@ -48,14 +48,14 @@ impl<A, U, O: MapLayer<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
 impl<A, O, U: MapLayer<A, To = O, Unwrapped = StackMarker>> Collapse<A, O>
     for RecursiveTree<U, StackMarker>
 {
-    fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
+    fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {
         let mut result_stack = Vec::new();
 
         for layer in self.elems.into_iter() {
             // each layer is only referenced once so just remove it, also we know it's there so unwrap is fine
             let layer = layer.map_layer(|_| result_stack.pop().unwrap());
 
-            result_stack.push(fold_layer(layer));
+            result_stack.push(collapse_layer(layer));
         }
 
         result_stack.pop().unwrap()
@@ -66,13 +66,13 @@ impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, StackMarker>
 where
     &'a U: MapLayer<A, To = O, Unwrapped = StackMarker>,
 {
-    fn collapse_layers<F: FnMut(O) -> A>(self, mut fold_layer: F) -> A {
+    fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {
         let mut result_stack = Vec::with_capacity(32);
 
         for layer in self.elems.iter() {
             let layer = layer.map_layer(|_| result_stack.pop().unwrap());
 
-            result_stack.push(fold_layer(layer));
+            result_stack.push(collapse_layer(layer));
         }
 
         result_stack.pop().unwrap()
