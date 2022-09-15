@@ -12,6 +12,7 @@ experimental = []
 
 [dependencies]
 futures = "0.3"
+json = "0.12" # TODO: optional, visualize only
 
 [dev-dependencies]
 clap = {version = "3.2", features = ["derive"]}

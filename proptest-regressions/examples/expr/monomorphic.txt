@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc b213373c5840d4eeb3dc00b63cfb217f1a4038f8e81d37718750bce20b818715 # shrinks to boxed_expr = Add { a: LiteralInt { literal: 0 }, b: LiteralInt { literal: 0 } }

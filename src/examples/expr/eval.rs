@@ -4,7 +4,9 @@ use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
 #[cfg(any(test, feature = "experimental"))]
 use crate::stack_machine::experimental::{expand_and_collapse_short_circuit, ShortCircuit};
-use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
+use crate::stack_machine::{
+    expand_and_collapse, expand_and_collapse_result, expand_and_collapse_v,
+};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
@@ -95,6 +97,15 @@ pub fn naive_eval(expr: &ExprAST) -> i64 {
     }
 }
 
+pub fn eval_lazy_2(expr: &ExprAST) -> i64 {
+    let (res, v) = expand_and_collapse_v(expr, generate_layer, eval_layer);
+    for v in v.iter() {
+        println!("{:?}", v);
+    }
+    panic!();
+    res
+}
+
 pub fn eval_lazy(expr: &ExprAST) -> i64 {
     expand_and_collapse(expr, generate_layer, eval_layer)
 }
@@ -120,6 +131,13 @@ pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
     )
 }
 
+
+    #[test]
+    fn expr_eval_simple() {
+        let expr = ExprAST::Add(Box::new(ExprAST::LiteralInt(1)), Box::new(ExprAST::LiteralInt(2)));
+        let _lazy_stack_eval_2 = eval_lazy_2(&expr);
+    }
+
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
 proptest! {
@@ -130,6 +148,7 @@ proptest! {
         let dfs_stack_eval = DFSStackExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
         let bloc_alloc_eval = BlocAllocExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
         let lazy_stack_eval = eval_lazy(&expr);
+        // let lazy_stack_eval_2 = eval_lazy_2(&expr);
         let lazy_eval_new = expr.collapse_layers(eval_layer);
         let lazy_eval_et = eval_lazy_et(&expr);
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
@@ -138,6 +157,7 @@ proptest! {
         assert_eq!(simple, dfs_stack_eval);
         assert_eq!(simple, bloc_alloc_eval);
         assert_eq!(simple, lazy_stack_eval);
+        // assert_eq!(simple, lazy_stack_eval_2);
         assert_eq!(simple, lazy_eval_new);
         assert_eq!(simple, lazy_eval_et);
         // will fail because literals > 99 are invalid in compiled ctx

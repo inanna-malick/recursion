@@ -4,5 +4,4 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
-cc e0b2975a77ec952a531cd03a9149c10afa94fa800c43c3f7e493575127ef9183 # shrinks to (expr, db_state) = (Sub(LiteralInt(0), LiteralInt(1)), {})
-cc d86ddabb1d6dd65fc7abf86682d749da782bbb80e02fef0f318443a504c9345e # shrinks to expr = Sub(Add(Add(LiteralInt(0), LiteralInt(0)), LiteralInt(0)), LiteralInt(0))
+cc 94c0db4b6c0975a005435af5014d561e1cdfdd9cf34be6e9fab4078df8553fe1 # shrinks to expr = LiteralInt(0)
