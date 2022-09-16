@@ -100,28 +100,68 @@ where
 
 pub type NodeIdx = usize;
 
-use serde::Serialize;
-
-#[derive(Debug, Clone, Serialize)]
-pub enum VizNode {
-    Seed{txt: String},
-    Out{txt: String},
-    Node{
-        txt: String,
-        children: Vec<NodeIdx>
-    },
+#[derive(Debug, Clone)]
+pub enum VizNode<Recurse> {
+    Seed { txt: String },
+    Out { txt: String },
+    Node { txt: String, children: Vec<Recurse> },
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct Viz {
-    root: NodeIdx,
-    pub nodes: HashMap<NodeIdx, VizNode>,
+#[derive(Debug, Clone)]
+pub struct VizTree(Box<VizNode<VizTree>>);
+
+impl<A, B> MapLayer<B> for VizNode<A> {
+    type To = VizNode<B>;
+    type Unwrapped = A;
+
+    #[inline(always)]
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To {
+        match self {
+            VizNode::Seed { txt } => VizNode::Seed { txt },
+            VizNode::Out { txt } => VizNode::Out { txt },
+            VizNode::Node { txt, children } => VizNode::Node {
+                txt,
+                children: children.into_iter().map(f).collect(),
+            },
+        }
+    }
 }
 
 // use serde_json::Result;
 
-pub fn serialize_json(elems: Vec<Viz>) -> serde_json::Result<String> {
-    serde_json::to_string(&elems)
+pub fn serialize_json(elems: Vec<VizTree>) -> serde_json::Result<String> {
+    use serde_json::value::Value;
+    let js_vals: Vec<Value> = elems
+        .into_iter()
+        .map(|elem| {
+            expand_and_collapse(
+                elem,
+                |elem| *elem.0,
+                |node| match node {
+                    VizNode::Seed { txt } => {
+                        let mut h = serde_json::Map::new();
+                        h.insert("typ".to_string(), Value::String("seed".to_string()));
+                        h.insert("txt".to_string(), Value::String(txt));
+                        Value::Object(h)
+                    }
+                    VizNode::Out { txt } => {
+                        let mut h = serde_json::Map::new();
+                        h.insert("typ".to_string(), Value::String("out".to_string()));
+                        h.insert("txt".to_string(), Value::String(txt));
+                        Value::Object(h)
+                    }
+                    VizNode::Node { txt, children } => {
+                        let mut h = serde_json::Map::new();
+                        h.insert("typ".to_string(), Value::String("node".to_string()));
+                        h.insert("txt".to_string(), Value::String(txt));
+                        h.insert("children".to_string(), Value::Array(children));
+                        Value::Object(h)
+                    }
+                },
+            )
+        })
+        .collect();
+    serde_json::to_string(&js_vals)
 }
 
 use std::fmt::Debug;
@@ -130,7 +170,7 @@ pub fn expand_and_collapse_v<Seed, Out, Expandable, Collapsable>(
     seed: Seed,
     mut coalg: impl FnMut(Seed) -> Expandable,
     mut alg: impl FnMut(Collapsable) -> Out,
-) -> (Out, Vec<Viz>)
+) -> (Out, Vec<VizTree>)
 where
     Seed: Clone + Debug,
     Out: Clone + Debug,
@@ -152,14 +192,9 @@ where
 
     let mut state: HashMap<StateIdx, State<Seed, _, Out>> = HashMap::new();
 
-    let mut v = vec![Viz {
-        nodes: {
-            let mut h = HashMap::new();
-            h.insert(0, VizNode::Seed{txt: format!("{:?}", seed)});
-            h
-        },
-        root: 0,
-    }];
+    let mut v = vec![VizTree(Box::new(VizNode::Seed {
+        txt: format!("{:?}", seed),
+    }))];
 
     state.insert(0, State::PreVisit(seed));
 
@@ -205,34 +240,32 @@ where
             State::Done(_) => unreachable!(),
         };
 
-        let stage_viz = Viz {
-            nodes: {
-                let mut h = HashMap::new();
+        let stage_viz = {
+            let t: VizTree = expand_and_collapse(
+                0,
+                |idx| match state.get(&idx).unwrap() {
+                    State::PreVisit(seed) => VizNode::Seed {
+                        txt: format!("{:?}", seed),
+                    },
+                    State::PostVisit(node) => {
+                        let node: <Expandable as MapLayer<usize>>::To = node.clone();
+                        let txt = format!("{:?}", node);
+                        let mut children = Vec::new();
 
-                for (key, node) in state.iter() {
-                    h.insert(
-                        key.clone(),
-                        match node {
-                            State::PreVisit(seed) => VizNode::Seed{txt: format!("{:?}", seed)},
-                            State::PostVisit(node) => {
-                                let node: <Expandable as MapLayer<usize>>::To = node.clone();
-                                let txt = format!("{:?}", node);
-                                let mut children = Vec::new();
+                        node.map_layer(|k| {
+                            children.push(k);
+                        });
 
-                                node.map_layer(|k| {
-                                    children.push(k);
-                                });
+                        VizNode::Node { txt, children }
+                    }
+                    State::Done(out) => VizNode::Out {
+                        txt: format!("{:?}", out),
+                    },
+                },
+                |n| VizTree(Box::new(n)),
+            );
 
-                                VizNode::Node{txt, children}
-                            }
-                            State::Done(out) => VizNode::Out{txt: format!("{:?}", out)},
-                        },
-                    );
-                }
-
-                h
-            },
-            root: 0,
+            t
         };
 
         v.push(stage_viz);
