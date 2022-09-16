@@ -100,17 +100,28 @@ where
 
 pub type NodeIdx = usize;
 
-#[derive(Debug, Clone)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
 pub enum VizNode {
-    Seed(String),
-    Out(String),
-    Node(String, Vec<NodeIdx>),
+    Seed{txt: String},
+    Out{txt: String},
+    Node{
+        txt: String,
+        children: Vec<NodeIdx>
+    },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Viz {
     root: NodeIdx,
-    nodes: HashMap<NodeIdx, VizNode>,
+    pub nodes: HashMap<NodeIdx, VizNode>,
+}
+
+// use serde_json::Result;
+
+pub fn serialize_json(elems: Vec<Viz>) -> serde_json::Result<String> {
+    serde_json::to_string(&elems)
 }
 
 use std::fmt::Debug;
@@ -144,7 +155,7 @@ where
     let mut v = vec![Viz {
         nodes: {
             let mut h = HashMap::new();
-            h.insert(0, VizNode::Seed(format!("{:?}", seed)));
+            h.insert(0, VizNode::Seed{txt: format!("{:?}", seed)});
             h
         },
         root: 0,
@@ -178,7 +189,7 @@ where
                 let node = node.map_layer(|_idx: usize| {
                     // note idx not used here, only recorded to simplify visualization
                     let idx = vals.pop().unwrap();
-                    if let State::Done(x) = state.get(&idx).unwrap() {
+                    if let State::Done(x) = state.remove(&idx).unwrap() {
                         x.clone()
                     } else {
                         unreachable!()
@@ -202,19 +213,19 @@ where
                     h.insert(
                         key.clone(),
                         match node {
-                            State::PreVisit(seed) => VizNode::Seed(format!("{:?}", seed)),
+                            State::PreVisit(seed) => VizNode::Seed{txt: format!("{:?}", seed)},
                             State::PostVisit(node) => {
                                 let node: <Expandable as MapLayer<usize>>::To = node.clone();
-                                let s = format!("{:?}", node);
+                                let txt = format!("{:?}", node);
                                 let mut children = Vec::new();
 
-                                node.map_layer( |k|  {
+                                node.map_layer(|k| {
                                     children.push(k);
                                 });
 
-                                VizNode::Node(s, children)
+                                VizNode::Node{txt, children}
                             }
-                            State::Done(out) => VizNode::Out(format!("{:?}", out)),
+                            State::Done(out) => VizNode::Out{txt: format!("{:?}", out)},
                         },
                     );
                 }
@@ -228,7 +239,7 @@ where
     }
 
     let idx = vals.pop().unwrap();
-    if let State::Done(x) = state.get(&idx).unwrap() {
+    if let State::Done(x) = state.remove(&idx).unwrap() {
         (x.clone(), v)
     } else {
         unreachable!()
