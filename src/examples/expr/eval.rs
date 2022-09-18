@@ -142,7 +142,10 @@ pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
 fn expr_eval_simple() {
     let expr = ExprAST::Add(
         Box::new(ExprAST::LiteralInt(1)),
-        Box::new(ExprAST::LiteralInt(2)),
+        Box::new(ExprAST::Add(
+            Box::new(ExprAST::LiteralInt(1)),
+            Box::new(ExprAST::LiteralInt(2)),
+        )),
     );
     let _lazy_stack_eval_2 = eval_lazy_2(&expr);
 }
