@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<style>
+
+.node rect {
+  fill: #fff;
+  stroke-width: 4px;
+ }
+
+
+.node text {
+  font: 12px sans-serif;
+}
+
+.link {
+  fill: none;
+  stroke-width: 4px;
+}
+
+</style>
+
+<body>
+
+<!-- load the d3.js library -->	
+<script src="https://d3js.org/d3.v7.js"></script>
+<script>
+
+
+ // colors for use in nodes, links, etc
+ const collapse_stroke = "mediumVioletRed";
+ const expand_stroke = "steelBlue";
+ const structure_stroke = "black";
+
+
+const data = {"actions":[{"seeds":[{"node_id":"1","txt":"Filesize(0..1000) && ! FileContents(many1) && IsUtf8"},{"node_id":"2","txt":"Filename(rs)"}],"target_id":"0","txt":"() && ()"},{"seeds":[],"target_id":"2","txt":"Filename(rs)"},{"target_id":"2","txt":"Known(true)"},{"seeds":[{"node_id":"3","txt":"Filesize(0..1000) && ! FileContents(many1)"},{"node_id":"4","txt":"IsUtf8"}],"target_id":"1","txt":"() && ()"},{"seeds":[],"target_id":"4","txt":"IsUtf8"},{"target_id":"4","txt":"IsUtf8"},{"seeds":[{"node_id":"5","txt":"Filesize(0..1000)"},{"node_id":"6","txt":"! FileContents(many1)"}],"target_id":"3","txt":"() && ()"},{"seeds":[{"node_id":"7","txt":"FileContents(many1)"}],"target_id":"6","txt":"! ()"},{"seeds":[],"target_id":"7","txt":"FileContents(many1)"},{"target_id":"7","txt":"FileContents(many1)"},{"target_id":"6","txt":"! FileContents(many1)"},{"seeds":[],"target_id":"5","txt":"Filesize(0..1000)"},{"target_id":"5","txt":"Filesize(0..1000)"},{"target_id":"3","txt":"Filesize(0..1000) && ! FileContents(many1)"},{"target_id":"1","txt":"Filesize(0..1000) && ! FileContents(many1) && IsUtf8"},{"target_id":"0","txt":"Filesize(0..1000) && ! FileContents(many1) && IsUtf8 && Known(true)"}],"root":{"node_id":"0","txt":"Filesize(0..1000) && ! FileContents(many1) && IsUtf8 && Filename(rs)","typ":"seed"}};
+
+
+ var treeData = data.root;
+
+ var actions = data.actions;
+
+
+// Set the dimensions and margins of the diagram
+var margin = {top: 20, right: 90, bottom: 30, left: 90},
+    width = 1560 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+// append the svg object to the body of the page
+// appends a 'group' element to 'svg'
+// moves the 'group' element to the top left margin
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.right + margin.left)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", "translate("
+          + margin.left + "," + margin.top + ")");
+
+var i = 0,
+    duration = 750,
+    root;
+
+// declares a tree layout and assigns the size
+var treemap = d3.tree().size([height, width]);
+
+// Assigns parent, children, height, depth
+ root = d3.hierarchy(treeData, function(d) { return d.children; });
+ root.x0 = height / 2;
+root.y0 = 0;
+
+
+update(root);
+
+
+ let intervalId = setInterval(function () {
+     var next = actions.shift();
+     if (next) {
+    if (next.seeds) { // in this case, is expand (todo explicit typ field for this)
+
+        let target = root.find(x => x.data.node_id == next.target_id);
+
+        target.data.txt = next.txt;
+        target.data.typ = "structure";
+
+        if (next.seeds.length) {
+            target.children = [];
+            target.data.children = [];
+        } else {
+            delete target.children;
+            delete target.data.children;
+        }
+        next.seeds.forEach(function(seed) {
+            var newNode = d3.hierarchy(seed);
+            newNode.depth = target.depth + 1;
+            newNode.height = target.height - 1;
+            newNode.parent = target;
+
+            newNode.data.typ = "seed";
+
+            target.children.push(newNode);
+            target.data.children.push(newNode.data);
+        });
+
+        update(target);
+
+    } else { // in this case, is collapse
+        let target = root.find(x => x.data.node_id == next.target_id);
+
+        // remove child nodes from tree
+        delete target.children;
+        delete target.data.children;
+        target.data.txt = next.txt;
+        target.data.typ = "collapse";
+
+
+        update(target);
+
+     }
+     } else {
+         clearInterval(intervalId);
+     }
+ }, 2000);
+
+
+
+
+function update(source) {
+
+  // Assigns the x and y position for the nodes
+  var treeData = treemap(root);
+
+  // Compute the new tree layout.
+  var nodes = treeData.descendants(),
+      links = treeData.descendants().slice(1);
+
+  // Normalize for fixed-depth.
+  nodes.forEach(function(d){ d.y = d.depth * 180});
+
+  // ****************** Nodes section ***************************
+
+  // Update the nodes...
+  var node = svg.selectAll('g.node')
+      .data(nodes, function(d) {return d.id || (d.id = ++i); });
+
+  // Enter any new modes at the parent's previous position.
+  var nodeEnter = node.enter().append('g')
+      .attr('class', 'node')
+      .attr("transform", function(d) {
+        return "translate(" + source.y0 + "," + source.x0 + ")";
+    });
+
+  // Add rect for the nodes
+  nodeEnter.append('rect')
+      .attr('class', 'node')
+      .attr('width', 1e-6)
+      .attr('height', 1e-6)
+           .transition()
+           .duration(500)
+
+           .transition()
+           .duration(500)
+     ;
+
+  // Add labels for the nodes
+  nodeEnter.append('text')
+      .attr("dy", ".35em")
+      .attr("x", function(d) {
+          return d.children || d._children ? -13 : 13;
+      })
+      .attr("text-anchor", function(d) {
+          return d.children || d._children ? "end" : "start";
+      })
+           .text(function(d) { return (d.data.typ + ":" + d.data.txt); });
+
+  // UPDATE
+  var nodeUpdate = nodeEnter.merge(node);
+
+  // Transition to the proper position for the node
+  nodeUpdate.transition()
+    .duration(duration)
+    .attr("transform", function(d) {
+        return "translate(" + d.y + "," + d.x + ")";
+     });
+
+  // Update the node attributes and style
+     nodeUpdate.select('rect.node')
+               .attr('stroke', function(d) {
+                   switch(d.data.typ) {
+                       case 'structure':
+                           return structure_stroke;
+                       case 'seed':
+                           return expand_stroke;
+                       case 'collapse':
+                           return collapse_stroke;
+                   }
+               })
+            .attr('width', function(d){ return textSize(d.data.txt + ":" + d.data.typ).width})
+            .attr('height', textSize("x").height + 5 )
+               .attr("transform", function(d) {return "translate(0, -" + (textSize("x").height + 5) / 2 + ")"; })
+            .transition()
+     .duration(500);
+
+     // update text
+     nodeUpdate.select("text")
+                            .text(function(d) { return (d.data.typ + ":" + d.data.txt); });
+
+
+  // Remove any exiting nodes
+  var nodeExit = node.exit().transition()
+      .duration(duration)
+      .attr("transform", function(d) {
+          return "translate(" + source.y + "," + source.x + ")";
+      })
+      .remove();
+
+  // On exit reduce the node circles size to 0
+    nodeExit.select('rect')
+      .attr('width', 1e-6)
+      .attr('height', 1e-6);
+
+  // On exit reduce the opacity of text labels
+  nodeExit.select('text')
+    .style('fill-opacity', 1e-6);
+
+  // ****************** links section ***************************
+
+  // Update the links...
+  var link = svg.selectAll('path.link')
+      .data(links, function(d) { return d.id; });
+
+  // Enter any new links at the parent's previous position.
+  var linkEnter = link.enter().insert('path', "g")
+      .attr("class", "link")
+      .attr('d', function(d){
+        var o = {x: source.x0, y: source.y0}
+        return diagonal(o, o)
+      });
+
+  // UPDATE
+  var linkUpdate = linkEnter.merge(link);
+
+  // Transition back to the parent element position
+     linkUpdate.transition()
+               .attr('stroke', function(d) {
+                   switch(d.data.typ) {
+                       case 'structure':
+                           return structure_stroke;
+                       case 'seed':
+                           return expand_stroke;
+                       case 'collapse':
+                           return collapse_stroke;
+                   }})
+      .duration(duration)
+      .attr('d', function(d){ return diagonal(d, d.parent) });
+
+  // Remove any exiting links
+  var linkExit = link.exit().transition()
+      .duration(duration)
+      .attr('d', function(d) {
+        var o = {x: source.x, y: source.y}
+        return diagonal(o, o)
+      })
+      .remove();
+
+  // Store the old positions for transition.
+  nodes.forEach(function(d){
+    d.x0 = d.x;
+    d.y0 = d.y;
+  });
+
+  // Creates a curved (diagonal) path from parent to the child nodes
+  function diagonal(s, d) {
+
+    path = `M ${s.y} ${s.x}
+            C ${(s.y + d.y) / 2} ${s.x},
+              ${(s.y + d.y) / 2} ${d.x},
+              ${d.y} ${d.x}`
+
+    return path
+  }
+ }
+
+ function textSize(text) {
+     if (!d3) return;
+     var container = d3.select('body').append('svg');
+     container.append('text').attr("x", -99999).attr( "y", -99999 ).text(text);
+     var size = container.node().getBBox();
+     container.remove();
+     return { width: size.width, height: size.height };
+ }
+
+
+</script>
+</body>
