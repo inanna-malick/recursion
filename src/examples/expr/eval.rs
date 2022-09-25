@@ -4,10 +4,8 @@ use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
 #[cfg(any(test, feature = "experimental"))]
 use crate::stack_machine::experimental::{expand_and_collapse_short_circuit, ShortCircuit};
-use crate::stack_machine::{
-    expand_and_collapse, expand_and_collapse_result, expand_and_collapse_v, serialize_html,
-    serialize_json,
-};
+use crate::stack_machine::visualize::{expand_and_collapse_v, serialize_html};
+use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
@@ -99,19 +97,10 @@ pub fn naive_eval(expr: &ExprAST) -> i64 {
 }
 
 pub fn eval_lazy_2(expr: &ExprAST) -> i64 {
-    let (res, v) = expand_and_collapse_v(expr, generate_layer, eval_layer);
+    let (_res, v) = expand_and_collapse_v(expr, generate_layer, eval_layer);
     println!("{}", serialize_html(v).unwrap());
-    // for (n, v) in v.iter().enumerate() {
-    //     println!("stage: {n}");
-    //     let mut sorted: Vec<_> = v.nodes.iter().collect();
-    //     sorted.sort_by_key(|(k, _)| **k);
-    //     for (k, v) in sorted.iter() {
-    //         println!("\t{}: {:?}", k, v);
-    //     }
-
-    // }
     panic!();
-    res
+    _res
 }
 
 pub fn eval_lazy(expr: &ExprAST) -> i64 {
