@@ -1,6 +1,6 @@
 [package]
 name = "recursion"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "cache-aware recursion schemes in rust"
 license = "MIT OR Apache-2.0"
@@ -8,11 +8,11 @@ license = "MIT OR Apache-2.0"
 [features]
 default = []
 expr_example = []
-experimental = []
+experimental = ["json"]
 
 [dependencies]
 futures = "0.3"
-json = "0.12" # TODO: optional, visualize only
+json = {version = "0.12", optional = true}
 
 [dev-dependencies]
 clap = {version = "3.2", features = ["derive"]}

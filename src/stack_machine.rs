@@ -208,7 +208,7 @@ where
                                 let s = format!("{:?}", node);
                                 let mut children = Vec::new();
 
-                                node.map_layer( |k|  {
+                                node.map_layer(|k| {
                                     children.push(k);
                                 });
 

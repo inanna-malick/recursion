@@ -4,9 +4,7 @@ use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
 #[cfg(any(test, feature = "experimental"))]
 use crate::stack_machine::experimental::{expand_and_collapse_short_circuit, ShortCircuit};
-use crate::stack_machine::{
-    expand_and_collapse, expand_and_collapse_result, expand_and_collapse_v,
-};
+use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
 #[cfg(test)]
 use crate::{
     examples::expr::naive::arb_expr,
@@ -97,14 +95,15 @@ pub fn naive_eval(expr: &ExprAST) -> i64 {
     }
 }
 
-pub fn eval_lazy_2(expr: &ExprAST) -> i64 {
-    let (res, v) = expand_and_collapse_v(expr, generate_layer, eval_layer);
-    for v in v.iter() {
-        println!("{:?}", v);
-    }
-    panic!();
-    res
-}
+// unprincipled hack, used to output json visualization until I get around to doing something better
+// pub fn eval_lazy_2(expr: &ExprAST) -> i64 {
+//     let (res, v) = expand_and_collapse_v(expr, generate_layer, eval_layer);
+//     for v in v.iter() {
+//         println!("{:?}", v);
+//     }
+//     panic!();
+//     res
+// }
 
 pub fn eval_lazy(expr: &ExprAST) -> i64 {
     expand_and_collapse(expr, generate_layer, eval_layer)
@@ -130,13 +129,6 @@ pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
         eval_layer,
     )
 }
-
-
-    #[test]
-    fn expr_eval_simple() {
-        let expr = ExprAST::Add(Box::new(ExprAST::LiteralInt(1)), Box::new(ExprAST::LiteralInt(2)));
-        let _lazy_stack_eval_2 = eval_lazy_2(&expr);
-    }
 
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
