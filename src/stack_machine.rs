@@ -1,6 +1,6 @@
 #[cfg(any(test, feature = "experimental"))]
 pub mod experimental;
-#[cfg(any(test, feature = "experimental"))]
+#[cfg(feature = "experimental")]
 pub mod visualize;
 
 use crate::map_layer::MapLayer;

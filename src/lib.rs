@@ -13,6 +13,6 @@ pub mod stack_machine;
 pub mod examples;
 
 pub use crate::recursive::{Collapse, Expand, ExpandAsync};
-#[cfg(any(test, feature = "expr_example"))]
-pub use crate::stack_machine::expand_and_collapse_v;
+#[cfg(feature = "experimental")]
+pub use crate::stack_machine::visualize::expand_and_collapse_v;
 pub use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
