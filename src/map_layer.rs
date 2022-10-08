@@ -27,8 +27,7 @@ pub trait MapLayerRef<B> {
     fn map_layer_ref<F: FnMut(Self::Unwrapped) -> B>(&self, f: F) -> Self::To;
 }
 
-#[cfg(any(test, feature = "experimental"))]
-// basically just From/To but we want something clearly context-specific and, idk, lawful probably
+/// Projection into some Layer type - from A to Layer<A>
 pub trait Project {
     // A
     type To; // F<A>

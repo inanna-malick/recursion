@@ -3,7 +3,7 @@ pub mod experimental;
 #[cfg(feature = "experimental")]
 pub mod visualize;
 
-use crate::map_layer::MapLayer;
+use crate::{map_layer::{MapLayer, Project}, Collapse};
 
 /// Build a state machine by simultaneously expanding a seed into some structure and consuming that structure from the leaves down.
 /// Uses 'Result' to handle early termination
@@ -94,4 +94,18 @@ where
         };
     }
     vals.pop().unwrap()
+}
+
+impl<
+        // Layer, a type parameter of kind * -> * that cannot be represented in rust
+        Seed: Project<To = GenerateExpr>,
+        Out,
+        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // Layer<Seed>
+        ConsumeExpr,                                          // Layer<Out>
+        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // Layer<()>
+    > Collapse<Out, ConsumeExpr> for Seed
+{
+    fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
+        expand_and_collapse(self, Project::project, collapse_layer)
+    }
 }

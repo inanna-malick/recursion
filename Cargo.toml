@@ -1,6 +1,6 @@
 [package]
 name = "recursion"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 description = "cache-aware stack safe recursion"
 license = "MIT OR Apache-2.0"

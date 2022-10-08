@@ -1,23 +1,9 @@
 use crate::{
     map_layer::{CoProject, MapLayer, Project},
-    Collapse, Expand,
+    Expand,
 };
 
 use super::expand_and_collapse;
-
-impl<
-        // F, a type parameter of kind * -> * that cannot be represented in rust
-        Seed: Project<To = Expandable>,
-        Out,
-        Expandable: MapLayer<(), Unwrapped = Seed, To = U>, // F<Seed>
-        Collapsable,                                        // F<Out>
-        U: MapLayer<Out, To = Collapsable, Unwrapped = ()>, // F<()>
-    > Collapse<Out, Collapsable> for Seed
-{
-    fn collapse_layers<F: FnMut(Collapsable) -> Out>(self, collapse_layer: F) -> Out {
-        expand_and_collapse(self, Project::project, collapse_layer)
-    }
-}
 
 impl<
         // F, a type parameter of kind * -> * that cannot be represented in rust
