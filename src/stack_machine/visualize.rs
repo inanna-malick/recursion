@@ -1,7 +1,64 @@
 use crate::map_layer::MapLayer;
+use crate::map_layer::Project;
+use crate::Collapse;
+use std::fmt::Debug;
+
+pub struct Visualized<X> {
+    x: X,
+    path: String,
+    sorted: bool,
+}
+
+impl<X> Visualized<X> {
+    pub fn new(x: X, path: String, sorted: bool) -> Self {
+        Visualized{x, path, sorted}
+    }
+}
+
+impl<
+        // Layer, a type parameter of kind * -> * that cannot be represented in rust
+        Seed: Project<To = GenerateExpr> + Debug,
+        Out: Debug,
+        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // Layer<Seed>
+        ConsumeExpr,                                          // Layer<Out>
+        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()> + Debug,
+    > Collapse<Out, ConsumeExpr> for Visualized<Seed>
+{
+    fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
+        let (out, v) = expand_and_collapse_v(self.x, Project::project, collapse_layer);
+
+        let to_write = if self.sorted {
+            let mut sorted_actions = v.actions.clone();
+
+            sorted_actions.sort_by_key(|x| match x {
+                VizAction::ExpandSeed{..} => 0,
+                VizAction::CollapseNode{..} => 1,
+
+            });
+
+            Viz {
+                actions: sorted_actions,
+                ..v
+            }
+        } else {
+            v
+        };
+
+        let to_write = serialize_html(to_write).unwrap();
+
+
+        println!("write to: {}", self.path);
+
+        std::fs::write(self.path, to_write).unwrap();
+
+
+        out
+    }
+}
 
 type VizNodeId = u32;
 
+#[derive(Clone)]
 pub enum VizAction {
     // expand a seed to a node, with new child seeds if any
     ExpandSeed {
@@ -16,12 +73,14 @@ pub enum VizAction {
     },
 }
 
+#[derive(Clone)]
 pub struct Viz {
     seed_txt: String,
     root_id: VizNodeId,
     actions: Vec<VizAction>,
 }
 
+// this is hilariously jamky and I can do better, but this is an experimental feature so I will not prioritize doing so.
 pub fn serialize_html(v: Viz) -> serde_json::Result<String> {
     let mut out = String::new();
     out.push_str(TEMPLATE_BEFORE);

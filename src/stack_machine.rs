@@ -3,7 +3,10 @@ pub mod experimental;
 #[cfg(feature = "experimental")]
 pub mod visualize;
 
-use crate::{map_layer::{MapLayer, Project}, Collapse};
+use crate::{
+    map_layer::{MapLayer, Project},
+    Collapse,
+};
 
 /// Build a state machine by simultaneously expanding a seed into some structure and consuming that structure from the leaves down.
 /// Uses 'Result' to handle early termination
