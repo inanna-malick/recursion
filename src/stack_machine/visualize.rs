@@ -1,7 +1,7 @@
 use crate::map_layer::MapLayer;
 use crate::map_layer::Project;
 use crate::Collapse;
-use std::fmt::Debug;
+use std::fmt::Display;
 
 pub struct Visualized<X> {
     x: X,
@@ -17,11 +17,11 @@ impl<X> Visualized<X> {
 
 impl<
         // Layer, a type parameter of kind * -> * that cannot be represented in rust
-        Seed: Project<To = GenerateExpr> + Debug,
-        Out: Debug,
+        Seed: Project<To = GenerateExpr> + Display,
+        Out: Display,
         GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // Layer<Seed>
         ConsumeExpr,                                          // Layer<Out>
-        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()> + Debug,
+        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()> + Display,
     > Collapse<Out, ConsumeExpr> for Visualized<Seed>
 {
     fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
@@ -166,9 +166,9 @@ pub fn expand_and_collapse_v<Seed, Out, Expandable, Collapsable>(
 where
     Expandable: MapLayer<(), Unwrapped = Seed>,
     <Expandable as MapLayer<()>>::To:
-        MapLayer<Out, Unwrapped = (), To = Collapsable> + std::fmt::Debug,
-    Seed: std::fmt::Debug,
-    Out: std::fmt::Debug,
+        MapLayer<Out, Unwrapped = (), To = Collapsable> + Display,
+    Seed: Display,
+    Out: Display,
 {
     enum State<Pre, Post> {
         PreVisit(Pre),
@@ -177,7 +177,7 @@ where
 
     let mut keygen = 1; // 0 is used for root node
     let mut v = Vec::new();
-    let root_seed_txt = format!("{:?}", seed);
+    let root_seed_txt = format!("{}", seed);
 
     let mut vals: Vec<Out> = vec![];
     let mut todo: Vec<State<(VizNodeId, Seed), _>> = vec![State::PreVisit((0, seed))];
@@ -192,14 +192,14 @@ where
                 let node = node.map_layer(|seed| {
                     let k = keygen;
                     keygen += 1;
-                    seeds_v.push((k, format!("{:?}", seed)));
+                    seeds_v.push((k, format!("{}", seed)));
 
                     topush.push(State::PreVisit((k, seed)))
                 });
 
                 v.push(VizAction::ExpandSeed {
                     target_id: viz_node_id,
-                    txt: format!("{:?}", node),
+                    txt: format!("{}", node),
                     seeds: seeds_v,
                 });
 
@@ -213,7 +213,7 @@ where
 
                 v.push(VizAction::CollapseNode {
                     target_id: viz_node_id,
-                    txt: format!("{:?}", out),
+                    txt: format!("{}",out),
                 });
 
                 vals.push(out)
@@ -230,6 +230,7 @@ where
     )
 }
 
+//TODO/FIXME: something better than this. that said, this is in experimental so :shrug_emoji:
 static TEMPLATE_BEFORE: &'static str = r###"
 <!DOCTYPE html>
 <meta charset="UTF-8">
@@ -241,7 +242,7 @@ static TEMPLATE_BEFORE: &'static str = r###"
  }
 
  .node text {
-  font: 13px verdana;
+  font: 16px verdana;
 }
 
 body {
@@ -298,7 +299,7 @@ var i = 0,
     root;
 
 // declares a tree layout and assigns the size
-var treemap = d3.tree().size([height, width]);
+var treemap = d3.tree().size([height/1.4, width]);
 
 // Assigns parent, children, height, depth
  root = d3.hierarchy(treeData, function(d) { return d.children; });
@@ -308,7 +309,7 @@ root.y0 = 0;
 
 update(root);
 
-var pause = 2;
+var pause = 0;
 
 
  let intervalId = setInterval(function () {
@@ -359,7 +360,7 @@ var pause = 2;
      } else {
          clearInterval(intervalId);
      }} else { pause -= 1;}
- }, 2000);
+ }, 1000);
 
 
 
@@ -374,7 +375,7 @@ function update(source) {
       links = treeData.descendants().slice(1);
 
   // Normalize for fixed-depth.
-  nodes.forEach(function(d){ d.y = d.depth * 180});
+  nodes.forEach(function(d){ d.y = d.depth * 210});
 
   // ****************** Nodes section ***************************
 
@@ -410,7 +411,7 @@ function update(source) {
       .attr("text-anchor", function(d) {
           return d.children || d._children ? "end" : "start";
       })
-           .text(function(d) { return (d.data.typ + ":" + d.data.txt); });
+           .text(function(d) { return (d.data.txt); });
 
   // UPDATE
   var nodeUpdate = nodeEnter.merge(node);
@@ -434,7 +435,7 @@ function update(source) {
                            return collapse_stroke;
                    }
                })
-            .attr('width', function(d){ return textSize(d.data.txt + ":" + d.data.typ).width})
+            .attr('width', function(d){ return textSize(d.data.txt).width})
             .attr('height', textSize("x").height + 5 )
                .attr("transform", function(d) {return "translate(0, -" + (textSize("x").height + 5) / 2 + ")"; })
             .transition()
@@ -442,7 +443,7 @@ function update(source) {
 
      // update text
      nodeUpdate.select("text")
-                            .text(function(d) { return (d.data.typ + ":" + d.data.txt); });
+                            .text(function(d) { return (d.data.txt); });
 
 
   // Remove any exiting nodes
@@ -526,7 +527,7 @@ function update(source) {
      container.append('text').attr("x", -99999).attr( "y", -99999 ).text(text);
      var size = container.node().getBBox();
      container.remove();
-     return { width: size.width, height: size.height };
+     return { width: size.width + 30, height: size.height + 10 };
  }
 
 
