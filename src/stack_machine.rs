@@ -24,8 +24,8 @@ pub fn expand_and_collapse_result<Seed, Out, Expandable, Collapsable, Error>(
     mut alg: impl FnMut(Collapsable) -> Result<Out, Error>,
 ) -> Result<Out, Error>
 where
-    Expandable: MapLayer<(), Unwrapped = Seed>,
-    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable>,
+    Expandable: MapLayer<Unwrapped = Seed>,
+    <Expandable as MapLayer>::Layer<()>: MapLayer<Unwrapped = (), Layer<Out> = Collapsable>,
 {
     enum State<Pre, Post> {
         PreVisit(Pre),
@@ -69,8 +69,8 @@ pub fn expand_and_collapse<Seed, Out, Expandable, Collapsable>(
     mut collapse_layer: impl FnMut(Collapsable) -> Out,
 ) -> Out
 where
-    Expandable: MapLayer<(), Unwrapped = Seed>,
-    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable>,
+    Expandable: MapLayer<Unwrapped = Seed>,
+    <Expandable as MapLayer>::Layer<()>: MapLayer<Unwrapped = (), Layer<Out> = Collapsable>,
 {
     enum State<Seed, CollapsableInternal> {
         Expand(Seed),
@@ -103,10 +103,11 @@ impl<
         // Layer, a type parameter of kind * -> * that cannot be represented in rust
         Seed: Project<To = GenerateExpr>,
         Out,
-        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // Layer<Seed>
-        ConsumeExpr,                                          // Layer<Out>
-        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()>,   // Layer<()>
+        GenerateExpr: MapLayer<Unwrapped = Seed>, // Layer<Seed>
+        ConsumeExpr,                              // Layer<Out>
     > Collapse<Out, ConsumeExpr> for Seed
+where
+    <GenerateExpr as MapLayer>::Layer<()>: MapLayer<Unwrapped = (), Layer<Out> = ConsumeExpr>,
 {
     fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
         expand_and_collapse(self, Project::project, collapse_layer)
