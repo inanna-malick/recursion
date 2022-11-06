@@ -11,12 +11,12 @@ pub struct NTreeLayer<Val, A> {
 
 pub type RecursiveNTree<V> = RecursiveTree<NTreeLayer<V, ArenaIndex>, ArenaIndex>;
 
-impl<A, B, V> MapLayer<B> for NTreeLayer<V, A> {
-    type To = NTreeLayer<V, B>;
+impl<A, V> MapLayer for NTreeLayer<V, A> {
+    type Layer<B> = NTreeLayer<V, B>;
     type Unwrapped = A;
 
-    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, f: F) -> Self::To {
-        Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B, B>(self, f: F) -> Self::Layer<B> {
+        Self::Layer {
             val: self.val,
             children: self.children.into_iter().map(f).collect(),
         }
@@ -38,11 +38,11 @@ pub enum CharLinkedList<A> {
     Nil,
 }
 
-impl<A, B> MapLayer<B> for CharLinkedList<A> {
-    type To = CharLinkedList<B>;
+impl<A> MapLayer for CharLinkedList<A> {
+    type Layer<B> = CharLinkedList<B>;
     type Unwrapped = A;
 
-    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B, B>(self, mut f: F) -> Self::Layer<B> {
         match self {
             CharLinkedList::Cons(c, a) => CharLinkedList::Cons(c, f(a)),
             CharLinkedList::Nil => CharLinkedList::Nil,

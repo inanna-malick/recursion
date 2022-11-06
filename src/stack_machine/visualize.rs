@@ -19,9 +19,9 @@ impl<
         // Layer, a type parameter of kind * -> * that cannot be represented in rust
         Seed: Project<To = GenerateExpr> + Display,
         Out: Display,
-        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // Layer<Seed>
+        GenerateExpr: MapLayer<Unwrapped = Seed, Layer<()> = U>, // Layer<Seed>
         ConsumeExpr,                                          // Layer<Out>
-        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()> + Display,
+        U: MapLayer<Layer<Out> = ConsumeExpr, Unwrapped = ()> + Display,
     > Collapse<Out, ConsumeExpr> for Visualized<Seed>
 {
     fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
@@ -164,9 +164,9 @@ pub fn expand_and_collapse_v<Seed, Out, Expandable, Collapsable>(
     mut alg: impl FnMut(Collapsable) -> Out,
 ) -> (Out, Viz)
 where
-    Expandable: MapLayer<(), Unwrapped = Seed>,
-    <Expandable as MapLayer<()>>::To:
-        MapLayer<Out, Unwrapped = (), To = Collapsable> + Display,
+    Expandable: MapLayer<Unwrapped = Seed>,
+    <Expandable as MapLayer>::Layer<()>:
+        MapLayer<Unwrapped = (), Layer<Out> = Collapsable> + Display,
     Seed: Display,
     Out: Display,
 {

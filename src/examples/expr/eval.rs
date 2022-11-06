@@ -2,8 +2,6 @@ use crate::examples::expr::Expr;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
-#[cfg(any(test, feature = "experimental"))]
-use crate::stack_machine::experimental::{expand_and_collapse_short_circuit, ShortCircuit};
 #[cfg(feature = "experimental")]
 use crate::stack_machine::visualize::{expand_and_collapse_v, serialize_html};
 use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
@@ -27,12 +25,12 @@ pub enum CompiledExpr<A> {
     LiteralInt(ValidInt),
 }
 
-impl<A, B> MapLayer<B> for CompiledExpr<A> {
-    type To = CompiledExpr<B>;
+impl<A> MapLayer for CompiledExpr<A> {
+    type Layer<B> = CompiledExpr<B>;
     type Unwrapped = A;
 
     #[inline(always)]
-    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
+    fn map_layer<F: FnMut(Self::Unwrapped) -> B, B>(self, mut f: F) -> Self::Layer<B> {
         match self {
             CompiledExpr::Add(a, b) => CompiledExpr::Add(f(a), f(b)),
             CompiledExpr::Sub(a, b) => CompiledExpr::Sub(f(a), f(b)),
@@ -108,26 +106,7 @@ pub fn eval_lazy(expr: &ExprAST) -> i64 {
     expand_and_collapse(expr, generate_layer, eval_layer)
 }
 
-pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
-    expand_and_collapse_short_circuit(
-        expr,
-        |e| {
-            let layer = generate_layer(e);
 
-            let sc = if let Expr::Mul(_, _) = layer {
-                Some(ShortCircuit {
-                    short_circuit_on: 0,
-                    return_on_short_circuit: 0,
-                })
-            } else {
-                None
-            };
-
-            layer.map_layer(|seed| (seed, sc))
-        },
-        eval_layer,
-    )
-}
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
 proptest! {
@@ -140,7 +119,6 @@ proptest! {
         let lazy_stack_eval = eval_lazy(&expr);
         // let lazy_stack_eval_2 = eval_lazy_2(&expr);
         let lazy_eval_new = expr.collapse_layers(eval_layer);
-        let lazy_eval_et = eval_lazy_et(&expr);
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
 
 
@@ -149,7 +127,6 @@ proptest! {
         assert_eq!(simple, lazy_stack_eval);
         // assert_eq!(simple, lazy_stack_eval_2);
         assert_eq!(simple, lazy_eval_new);
-        assert_eq!(simple, lazy_eval_et);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }

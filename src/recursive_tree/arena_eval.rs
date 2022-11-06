@@ -25,7 +25,7 @@ impl ArenaIndex {
 
 impl<A, Underlying, Wrapped> Expand<A, Wrapped> for RecursiveTree<Underlying, ArenaIndex>
 where
-    Wrapped: MapLayer<ArenaIndex, Unwrapped = A, To = Underlying>,
+    Wrapped: MapLayer<Unwrapped = A, Layer<ArenaIndex> = Underlying>,
 {
     fn expand_layers<F: Fn(A) -> Wrapped>(a: A, expand_layer: F) -> Self {
         let mut frontier = VecDeque::from([a]);
@@ -51,7 +51,7 @@ where
     }
 }
 
-impl<A, U: Send, O: MapLayer<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, O>
+impl<A, U: Send, O: MapLayer<Unwrapped = A, Layer<ArenaIndex> = U>> ExpandAsync<A, O>
     for RecursiveTree<U, ArenaIndex>
 {
     fn expand_layers_async<
@@ -95,7 +95,7 @@ impl<A, U: Send, O: MapLayer<ArenaIndex, Unwrapped = A, To = U>> ExpandAsync<A, 
 
 impl<A, Wrapped, Underlying> Collapse<A, Wrapped> for RecursiveTree<Underlying, ArenaIndex>
 where
-    Underlying: MapLayer<A, To = Wrapped, Unwrapped = ArenaIndex>,
+    Underlying: MapLayer<Layer<A> = Wrapped, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
     fn collapse_layers<F: FnMut(Wrapped) -> A>(self, mut collapse_layer: F) -> A {
@@ -128,7 +128,7 @@ where
 
 impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, ArenaIndex>
 where
-    &'a U: MapLayer<A, To = O, Unwrapped = ArenaIndex>,
+    &'a U: MapLayer<Layer<A> = O, Unwrapped = ArenaIndex>,
 {
     // TODO: 'checked' compile flag to control whether this gets a vec of maybeuninit or a vec of Option w/ unwrap
     fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {

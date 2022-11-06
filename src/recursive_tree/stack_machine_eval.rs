@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct StackMarker;
 
-impl<A, U, O: MapLayer<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
+impl<A, U, O: MapLayer<Unwrapped = A, Layer<StackMarker> = U>> Expand<A, O>
     for RecursiveTree<U, StackMarker>
 {
     fn expand_layers<F: Fn(A) -> O>(a: A, generate_layer: F) -> Self {
@@ -45,7 +45,7 @@ impl<A, U, O: MapLayer<StackMarker, Unwrapped = A, To = U>> Expand<A, O>
     }
 }
 
-impl<A, O, U: MapLayer<A, To = O, Unwrapped = StackMarker>> Collapse<A, O>
+impl<A, O, U: MapLayer<Layer<A> = O, Unwrapped = StackMarker>> Collapse<A, O>
     for RecursiveTree<U, StackMarker>
 {
     fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {
@@ -64,7 +64,7 @@ impl<A, O, U: MapLayer<A, To = O, Unwrapped = StackMarker>> Collapse<A, O>
 
 impl<'a, A, O: 'a, U> Collapse<A, O> for RecursiveTreeRef<'a, U, StackMarker>
 where
-    &'a U: MapLayer<A, To = O, Unwrapped = StackMarker>,
+    &'a U: MapLayer<Layer<A> = O, Unwrapped = StackMarker>,
 {
     fn collapse_layers<F: FnMut(O) -> A>(self, mut collapse_layer: F) -> A {
         let mut result_stack = Vec::with_capacity(32);
