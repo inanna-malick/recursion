@@ -1,10 +1,11 @@
 //! Support for collapsing and expanding recursive structures by
 //! repeatedly expanding or collapsing it one layer at a time.
 //!
+use futures::future::BoxFuture;
 #[cfg(any(test, feature = "experimental"))]
 use std::ops::ControlFlow;
-
-use futures::future::BoxFuture;
+#[cfg(feature = "gat")]
+pub mod gat;
 
 /// Support for collapsing a structure into a single value, one layer at a time
 pub trait Collapse<A, Wrapped> {

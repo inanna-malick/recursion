@@ -1,6 +1,6 @@
 [package]
 name = "recursion"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 description = "cache-aware stack safe recursion"
 license = "MIT OR Apache-2.0"
@@ -9,6 +9,8 @@ license = "MIT OR Apache-2.0"
 default = []
 expr_example = []
 experimental = ["json", "serde", "serde_json"]
+# minimum rust version: 1.65
+gat = []
 
 [dependencies]
 futures = "0.3"

@@ -11,7 +11,7 @@ pub struct Visualized<X> {
 
 impl<X> Visualized<X> {
     pub fn new(x: X, path: String, sorted: bool) -> Self {
-        Visualized{x, path, sorted}
+        Visualized { x, path, sorted }
     }
 }
 
@@ -31,9 +31,8 @@ impl<
             let mut sorted_actions = v.actions.clone();
 
             sorted_actions.sort_by_key(|x| match x {
-                VizAction::ExpandSeed{..} => 0,
-                VizAction::CollapseNode{..} => 1,
-
+                VizAction::ExpandSeed { .. } => 0,
+                VizAction::CollapseNode { .. } => 1,
             });
 
             Viz {
@@ -46,11 +45,9 @@ impl<
 
         let to_write = serialize_html(to_write).unwrap();
 
-
         println!("write to: {}", self.path);
 
         std::fs::write(self.path, to_write).unwrap();
-
 
         out
     }
@@ -165,8 +162,7 @@ pub fn expand_and_collapse_v<Seed, Out, Expandable, Collapsable>(
 ) -> (Out, Viz)
 where
     Expandable: MapLayer<(), Unwrapped = Seed>,
-    <Expandable as MapLayer<()>>::To:
-        MapLayer<Out, Unwrapped = (), To = Collapsable> + Display,
+    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable> + Display,
     Seed: Display,
     Out: Display,
 {
@@ -213,7 +209,7 @@ where
 
                 v.push(VizAction::CollapseNode {
                     target_id: viz_node_id,
-                    txt: format!("{}",out),
+                    txt: format!("{}", out),
                 });
 
                 vals.push(out)

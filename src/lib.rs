@@ -16,3 +16,6 @@ pub use crate::recursive::{Collapse, Expand, ExpandAsync};
 #[cfg(feature = "experimental")]
 pub use crate::stack_machine::visualize::expand_and_collapse_v;
 pub use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
+
+#[cfg(feature = "gat")]
+pub use crate::recursive::gat::*;
