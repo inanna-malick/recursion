@@ -4,7 +4,6 @@
 use futures::future::BoxFuture;
 #[cfg(any(test, feature = "experimental"))]
 use std::ops::ControlFlow;
-#[cfg(feature = "gat")]
 pub mod gat;
 
 /// Support for collapsing a structure into a single value, one layer at a time
