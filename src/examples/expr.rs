@@ -3,8 +3,11 @@ pub mod eval;
 pub mod monomorphic;
 pub mod naive;
 
+use crate::recursive::gat::*;
+
 use crate::{
     map_layer::MapLayer,
+    recursive::gat::PartiallyApplied,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
 
@@ -15,6 +18,22 @@ pub enum Expr<A> {
     Sub(A, A),
     Mul(A, A),
     LiteralInt(i64),
+}
+
+impl Functor for Expr<PartiallyApplied> {
+    type Layer<X> = Expr<X>;
+
+    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
+    where
+        F: FnMut(A) -> B,
+    {
+        match input {
+            Expr::Add(a, b) => Expr::Add(f(a), f(b)),
+            Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
+            Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
+            Expr::LiteralInt(x) => Expr::LiteralInt(x),
+        }
+    }
 }
 
 impl<A, B> MapLayer<B> for Expr<A> {

@@ -1,4 +1,9 @@
+use std::sync::Arc;
+
 use crate::examples::expr::Expr;
+use crate::PartialExpansion;
+use crate::RecursiveExt;
+use crate::WithContext;
 
 use crate::examples::expr::naive::{generate_layer, ExprAST};
 use crate::map_layer::MapLayer;
@@ -108,26 +113,6 @@ pub fn eval_lazy(expr: &ExprAST) -> i64 {
     expand_and_collapse(expr, generate_layer, eval_layer)
 }
 
-pub fn eval_lazy_et(expr: &ExprAST) -> i64 {
-    expand_and_collapse_short_circuit(
-        expr,
-        |e| {
-            let layer = generate_layer(e);
-
-            let sc = if let Expr::Mul(_, _) = layer {
-                Some(ShortCircuit {
-                    short_circuit_on: 0,
-                    return_on_short_circuit: 0,
-                })
-            } else {
-                None
-            };
-
-            layer.map_layer(|seed| (seed, sc))
-        },
-        eval_layer,
-    )
-}
 // generate a bunch of expression trees and evaluate them
 #[cfg(test)]
 proptest! {
@@ -140,7 +125,50 @@ proptest! {
         let lazy_stack_eval = eval_lazy(&expr);
         // let lazy_stack_eval_2 = eval_lazy_2(&expr);
         let lazy_eval_new = expr.collapse_layers(eval_layer);
-        let lazy_eval_et = eval_lazy_et(&expr);
+        // let lazy_eval_et = eval_lazy_et(&expr);
+
+        let eval_gat = expr.fold_recursive(eval_layer);
+
+        let eval_gat_partial = PartialExpansion {
+            wrapped: &expr,
+            f: Arc::new(|expr| match expr {
+                        Expr::Add(a, b) => Expr::Add(Some(a), Some(b)),
+                        Expr::Sub(a, b) => Expr::Sub(Some(a), Some(b)),
+                        Expr::Mul(_ignored, b) => Expr::Mul(None, Some(b)),
+                        Expr::LiteralInt(x) => Expr::LiteralInt(x),
+
+            })
+        }.fold_recursive(|expr| {
+                match expr {
+                    Expr::Add(a, b) => a.unwrap() + b.unwrap(),
+                    Expr::Sub(a, b) => a.unwrap() - b.unwrap(),
+                    Expr::Mul(_always_none, b) => b.unwrap(),
+                    Expr::LiteralInt(x) => x,
+                }
+
+        });
+
+
+        let eval_gat_with_ctx = WithContext(&expr).fold_recursive(|expr: Expr<(&ExprAST, i64)>| match expr {
+            Expr::Add((ctx_a, a), (ctx_b, b)) => {
+                assert_eq!(naive_eval(ctx_a), a);
+                assert_eq!(naive_eval(ctx_b), b);
+                a + b
+            }
+            Expr::Sub((ctx_a, a), (ctx_b, b)) => {
+                assert_eq!(naive_eval(ctx_a), a);
+                assert_eq!(naive_eval(ctx_b), b);
+                a - b
+            }
+            Expr::Mul((ctx_a, a), (ctx_b, b)) => {
+                assert_eq!(naive_eval(ctx_a), a);
+                assert_eq!(naive_eval(ctx_b), b);
+                a * b
+            }
+            Expr::LiteralInt(x) => x,
+        });
+
+
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
 
 
@@ -149,7 +177,9 @@ proptest! {
         assert_eq!(simple, lazy_stack_eval);
         // assert_eq!(simple, lazy_stack_eval_2);
         assert_eq!(simple, lazy_eval_new);
-        assert_eq!(simple, lazy_eval_et);
+        assert_eq!(simple, eval_gat);
+        // assert_eq!(simple, eval_gat_partial);
+        assert_eq!(simple, eval_gat_with_ctx);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }

@@ -9,7 +9,7 @@ pub mod recursive;
 pub mod recursive_tree;
 pub mod stack_machine;
 // using cfg flag to make expr examples available in a benchmark context
-#[cfg(any(test, feature = "expr_example"))]
+// #[cfg(any(test, feature = "expr_example"))]
 pub mod examples;
 
 pub use crate::recursive::{Collapse, Expand, ExpandAsync};
@@ -17,5 +17,4 @@ pub use crate::recursive::{Collapse, Expand, ExpandAsync};
 pub use crate::stack_machine::visualize::expand_and_collapse_v;
 pub use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
 
-#[cfg(feature = "gat")]
 pub use crate::recursive::gat::*;

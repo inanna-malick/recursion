@@ -1,4 +1,4 @@
-use crate::{examples::expr::*, map_layer::Project};
+use crate::{examples::expr::*, map_layer::Project, recursive::gat::Recursive};
 #[cfg(test)]
 use proptest::prelude::*;
 
@@ -9,6 +9,19 @@ pub enum ExprAST {
     Sub(Box<ExprAST>, Box<ExprAST>),
     Mul(Box<ExprAST>, Box<ExprAST>),
     LiteralInt(i64),
+}
+
+impl Recursive for &ExprAST {
+    type FunctorToken = Expr<PartiallyApplied>;
+
+    fn into_layer(self) -> <Self::FunctorToken as crate::recursive::gat::Functor>::Layer<Self> {
+        match self {
+            ExprAST::Add(a, b) => Expr::Add(a, b),
+            ExprAST::Sub(a, b) => Expr::Sub(a, b),
+            ExprAST::Mul(a, b) => Expr::Mul(a, b),
+            ExprAST::LiteralInt(x) => Expr::LiteralInt(*x),
+        }
+    }
 }
 
 pub fn generate_layer(x: &ExprAST) -> Expr<&ExprAST> {

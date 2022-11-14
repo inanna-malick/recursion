@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 94c0db4b6c0975a005435af5014d561e1cdfdd9cf34be6e9fab4078df8553fe1 # shrinks to expr = LiteralInt(0)
+cc 09a9de756f54e61ca19e9e957e000a03e704554698d0a4b6a0e13ae376424c87 # shrinks to expr = Mul(LiteralInt(0), LiteralInt(1))
