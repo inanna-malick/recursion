@@ -6,7 +6,7 @@ description = "tests for the recursion and recursion-schemes library"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-recursion = {path = "../recursion", version = "0.4"}
+recursion = {path = "../recursion", version = "0.4", features = ["experimental"]}
 recursion-schemes = {path = "../recursion-schemes", version = "0.1"}
 proptest = "1.0"
 

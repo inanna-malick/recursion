@@ -34,7 +34,7 @@ pub trait Project {
     fn project(self) -> Self::To;
 }
 
-#[cfg(any(test, feature = "experimental"))]
+#[cfg(feature = "experimental")]
 pub trait CoProject {
     // A
     type From; // F<A>

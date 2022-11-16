@@ -93,11 +93,11 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
     // sort to mimic non-fused ana -> cata style eval
     actions.sort_by_key(|x| match x {
         VizAction::ExpandSeed {
-            target_id,
-            txt,
-            seeds,
+            target_id: _,
+            txt: _,
+            seeds: _,
         } => 0,
-        VizAction::CollapseNode { target_id, txt } => 1,
+        VizAction::CollapseNode { target_id: _, txt: _ } => 1,
     });
     let actions: Vec<Value> = actions
         .into_iter()

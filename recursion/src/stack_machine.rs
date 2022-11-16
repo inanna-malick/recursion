@@ -1,18 +1,9 @@
-#[cfg(feature = "experimental")]
-pub mod experimental;
-
 use crate::{
     map_layer::{MapLayer, Project},
     Collapse,
 };
 
 /// Build a state machine by simultaneously expanding a seed into some structure and consuming that structure from the leaves down.
-/// Uses 'Result' to handle early termination
-
-/// Type parameter explanation:
-/// Layer: some partially applied type, eg Option or Vec. Not yet representable in Rust.
-/// Seed: the initial value that structure is expanded out from
-/// Out: the value that the structure is collapsed into
 /// Expandable: a single layer of expanding structure, of type Layer<Seed>
 /// Collapsable: a single layer of collapsing structure, of type Layer<Out>
 /// E: a failure case that results in early termination when encountered
