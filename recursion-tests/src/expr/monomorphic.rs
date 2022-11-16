@@ -85,6 +85,7 @@ pub struct Expr {
 // Here's how to do so: we take a boxed expression, and generate a single layer of structure from it, repeatedly generateing layers until all the boxed expressions are converted to this repr
 
 impl Expr {
+    #[cfg(test)]
     fn generate_from_boxed_inline(a: &ExprBoxed) -> Self {
         let mut frontier: VecDeque<&ExprBoxed> = VecDeque::new();
         let mut elems = vec![];
@@ -133,6 +134,7 @@ impl Expr {
 }
 
 impl Expr {
+    #[cfg(test)]
     fn generate_from_boxed_with_fmap(seed: &ExprBoxed) -> Self {
         let mut frontier: VecDeque<&ExprBoxed> = VecDeque::from([seed]);
         let mut elems = vec![];
@@ -168,6 +170,7 @@ impl Expr {
 // before we get into that, let's look at what evaluating a recursive structure into a single value looks like:
 
 impl Expr {
+    #[cfg(test)]
     fn eval_inline(self) -> i64 {
         use std::mem::MaybeUninit;
 
@@ -229,6 +232,7 @@ impl<A> ExprLayer<A> {
 }
 
 impl Expr {
+    #[cfg(test)]
     fn eval_inline_fmap(self) -> i64 {
         use std::mem::MaybeUninit;
 

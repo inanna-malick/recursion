@@ -1,118 +1,9 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
-use super::Collapse;
-use crate::map_layer::MapLayer;
-use futures::{future::BoxFuture, Future, FutureExt};
+#[cfg(feature = "backcompat")]
+use recursion::Collapse;
 
-// TODO: rename to _just_ functor
-pub trait Functor {
-    type Layer<X>;
-
-    fn fmap<F, A, B>(input: Self::Layer<A>, f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B;
-}
-
-pub struct Compose<F1, F2>(std::marker::PhantomData<F1>, std::marker::PhantomData<F2>);
-
-impl<F1: Functor, F2: Functor> Functor for Compose<F1, F2> {
-    type Layer<X> = F1::Layer<F2::Layer<X>>;
-
-    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
-    {
-        F1::fmap(input, move |x| F2::fmap(x, |x| f(x)))
-    }
-}
-
-pub enum PartiallyApplied {}
-
-// used to represent partial expansion
-impl Functor for Option<PartiallyApplied> {
-    type Layer<X> = Option<X>;
-
-    fn fmap<F, A, B>(input: Self::Layer<A>, f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
-    {
-        input.map(f)
-    }
-}
-
-// used to represent partial expansion
-impl<Fst> Functor for (Fst, PartiallyApplied) {
-    type Layer<X> = (Fst, X);
-
-    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
-    {
-        (input.0, f(input.1))
-    }
-}
-
-// pub trait JoinFuture: Functor {
-//     fn join_layer<A>(
-//         input: Self::Layer<BoxFuture<'static, A>>,
-//     ) -> BoxFuture<'static, Self::Layer<A>>;
-// }
-
-// pub fn expand_and_collapse_async<Seed, Out, F: JoinFuture>(
-//     seed: Seed,
-//     expand_layer: Arc<dyn Fn(Seed) -> BoxFuture<'static, F::Layer<Seed>> + Send + Sync + 'static>,
-//     collapse_layer: Arc<dyn Fn(F::Layer<Out>) -> BoxFuture<'static, Out> + Send + Sync + 'static>,
-// ) -> impl Future<Output = Out> + Send
-// where
-//     F: 'static,
-//     Seed: Send + Sync + 'static,
-//     Out: Send + Sync + 'static,
-//     F::Layer<Seed>: Send + Sync + 'static,
-//     F::Layer<Out>: Send + Sync + 'static,
-//     for<'a> F::Layer<BoxFuture<'a, Out>>: Send + Sync,
-//     F::Layer<BoxFuture<'static, Out>>: 'static,
-// {
-//     async move {
-//         let layer: F::Layer<Seed> = expand_layer(seed).await;
-
-//         let expanded: F::Layer<BoxFuture<'static, Out>> = F::fmap(layer, |x| {
-//             expand_and_collapse_async::<Seed, Out, F>(
-//                 x,
-//                 expand_layer.clone(),
-//                 collapse_layer.clone(),
-//             )
-//             .boxed()
-//         });
-
-//         let expanded_joined: F::Layer<Out> = F::join_layer(expanded).await;
-
-//         let res = collapse_layer(expanded_joined).await;
-
-//         res
-//     }
-// }
-
-struct MapLayerFromFunctor<Layer, Unwrapped, F: Functor>(
-    Layer,
-    PhantomData<Unwrapped>,
-    PhantomData<F>,
-);
-
-impl<F: Functor, A, B> MapLayer<B> for MapLayerFromFunctor<F::Layer<A>, A, F> {
-    type Unwrapped = A;
-
-    type To = F::Layer<B>;
-
-    fn map_layer<FF: FnMut(Self::Unwrapped) -> B>(self, f: FF) -> Self::To {
-        F::fmap(self.0, f)
-    }
-}
-
-impl<L, U, F: Functor> MapLayerFromFunctor<L, U, F> {
-    pub fn new(x: L) -> Self {
-        MapLayerFromFunctor(x, PhantomData, PhantomData)
-    }
-}
+use crate::functor::{Compose, Functor, PartiallyApplied};
 
 pub trait Recursive
 where
@@ -143,8 +34,6 @@ impl<R: Recursive, A> Recursive for Annotated<R, A> {
         })
     }
 }
-
-
 
 // TODO: futumorphism to allow for partial non-async expansion? yes! but (I think) needs to be erased for collapse phase
 // TODO: b/c at that point there's no need for that info..
@@ -245,8 +134,10 @@ where
     }
 }
 
+#[cfg(feature = "backcompat")]
 struct CollapseViaRecursive<X>(X);
 
+#[cfg(feature = "backcompat")]
 impl<Out, R: RecursiveExt> Collapse<Out, <<R as Recursive>::FunctorToken as Functor>::Layer<Out>>
     for CollapseViaRecursive<R>
 {

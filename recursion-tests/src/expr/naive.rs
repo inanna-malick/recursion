@@ -1,6 +1,8 @@
-use crate::{examples::expr::*, map_layer::Project, recursive::gat::Recursive};
-#[cfg(test)]
+use crate::expr::*;
 use proptest::prelude::*;
+use recursion::map_layer::Project;
+use recursion_schemes::functor::Functor;
+use recursion_schemes::recursive::Recursive;
 
 /// simple naive representation of a recursive expression AST.
 #[derive(Debug, Clone)]
@@ -14,7 +16,7 @@ pub enum ExprAST {
 impl Recursive for &ExprAST {
     type FunctorToken = Expr<PartiallyApplied>;
 
-    fn into_layer(self) -> <Self::FunctorToken as crate::recursive::gat::Functor>::Layer<Self> {
+    fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
         match self {
             ExprAST::Add(a, b) => Expr::Add(a, b),
             ExprAST::Sub(a, b) => Expr::Sub(a, b),
@@ -41,7 +43,6 @@ impl Project for &ExprAST {
     }
 }
 
-#[cfg(test)]
 pub fn arb_expr() -> impl Strategy<Value = ExprAST> {
     let leaf = prop_oneof![any::<i8>().prop_map(|x| ExprAST::LiteralInt(x as i64)),];
     leaf.prop_recursive(

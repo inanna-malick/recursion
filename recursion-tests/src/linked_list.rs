@@ -1,7 +1,7 @@
-use crate::map_layer::MapLayer;
-use crate::recursive::{Collapse, Expand};
-use crate::recursive_tree::arena_eval::ArenaIndex;
-use crate::recursive_tree::RecursiveTree;
+use recursion::map_layer::MapLayer;
+use recursion::recursive::{Collapse, Expand};
+use recursion::recursive_tree::arena_eval::ArenaIndex;
+use recursion::recursive_tree::RecursiveTree;
 
 #[derive(Debug, Clone)]
 pub struct NTreeLayer<Val, A> {

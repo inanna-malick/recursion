@@ -1,25 +1,12 @@
-use std::sync::Arc;
+use crate::expr::Expr;
 
-use crate::examples::expr::Expr;
-use crate::PartialExpansion;
-use crate::RecursiveExt;
-use crate::WithContext;
-
-use crate::examples::expr::naive::{generate_layer, ExprAST};
-use crate::map_layer::MapLayer;
-#[cfg(any(test, feature = "experimental"))]
-use crate::stack_machine::experimental::{expand_and_collapse_short_circuit, ShortCircuit};
-#[cfg(feature = "experimental")]
-use crate::stack_machine::visualize::{expand_and_collapse_v, serialize_html};
-use crate::stack_machine::{expand_and_collapse, expand_and_collapse_result};
 #[cfg(test)]
-use crate::{
-    examples::expr::naive::arb_expr,
-    examples::expr::{BlocAllocExpr, DFSStackExpr},
-    recursive::{Collapse, Expand},
-};
+use crate::expr::naive::arb_expr;
+use crate::expr::naive::{generate_layer, ExprAST};
 #[cfg(test)]
-use proptest::prelude::*;
+use proptest::proptest;
+use recursion::map_layer::MapLayer;
+use recursion::stack_machine::{expand_and_collapse, expand_and_collapse_result};
 
 #[derive(Debug, Clone)]
 pub struct ValidInt(i64);
@@ -118,6 +105,12 @@ pub fn eval_lazy(expr: &ExprAST) -> i64 {
 proptest! {
     #[test]
     fn expr_eval(expr in arb_expr()) {
+        use crate::{
+            expr::{BlocAllocExpr, DFSStackExpr},
+        };
+        use recursion_schemes::recursive::{RecursiveExt, WithContext};
+        use recursion::{Collapse, Expand};
+
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let simple = naive_eval(&expr);
         let dfs_stack_eval = DFSStackExpr::expand_layers(&expr, generate_layer).collapse_layers(eval_layer);
@@ -129,25 +122,27 @@ proptest! {
 
         let eval_gat = expr.fold_recursive(eval_layer);
 
-        let eval_gat_partial = PartialExpansion {
-            wrapped: &expr,
-            f: Arc::new(|expr| match expr {
-                        Expr::Add(a, b) => Expr::Add(Some(a), Some(b)),
-                        Expr::Sub(a, b) => Expr::Sub(Some(a), Some(b)),
-                        Expr::Mul(_ignored, b) => Expr::Mul(None, Some(b)),
-                        Expr::LiteralInt(x) => Expr::LiteralInt(x),
+        // example of partial expansion, will fail for multiply case
+        // let eval_gat_partial = {
+        //     use std::sync::Arc;
+        //     PartialExpansion {
+        //         wrapped: &expr,
+        //         f: Arc::new(|expr| match expr {
+        //                     Expr::Add(a, b) => Expr::Add(Some(a), Some(b)),
+        //                     Expr::Sub(a, b) => Expr::Sub(Some(a), Some(b)),
+        //                     Expr::Mul(_ignored, b) => Expr::Mul(None, Some(b)),
+        //                     Expr::LiteralInt(x) => Expr::LiteralInt(x),
 
-            })
-        }.fold_recursive(|expr| {
-                match expr {
-                    Expr::Add(a, b) => a.unwrap() + b.unwrap(),
-                    Expr::Sub(a, b) => a.unwrap() - b.unwrap(),
-                    Expr::Mul(_always_none, b) => b.unwrap(),
-                    Expr::LiteralInt(x) => x,
-                }
-
-        });
-
+        //         })
+        //     }.fold_recursive(|expr| {
+        //             match expr {
+        //                 Expr::Add(a, b) => a.unwrap() + b.unwrap(),
+        //                 Expr::Sub(a, b) => a.unwrap() - b.unwrap(),
+        //                 Expr::Mul(_always_none, b) => b.unwrap(),
+        //                 Expr::LiteralInt(x) => x,
+        //             }
+        //     })
+        // };
 
         let eval_gat_with_ctx = WithContext(&expr).fold_recursive(|expr: Expr<(&ExprAST, i64)>| match expr {
             Expr::Add((ctx_a, a), (ctx_b, b)) => {
@@ -183,4 +178,5 @@ proptest! {
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }
+
 }

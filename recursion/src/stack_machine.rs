@@ -1,7 +1,5 @@
-#[cfg(any(test, feature = "experimental"))]
-pub mod experimental;
 #[cfg(feature = "experimental")]
-pub mod visualize;
+pub mod experimental;
 
 use crate::{
     map_layer::{MapLayer, Project},

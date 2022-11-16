@@ -1,6 +1,6 @@
-use crate::map_layer::MapLayer;
-use crate::map_layer::Project;
-use crate::Collapse;
+use recursion::map_layer::MapLayer;
+use recursion::map_layer::Project;
+use recursion::Collapse;
 use std::fmt::Display;
 
 pub struct Visualized<X> {

@@ -1,15 +1,12 @@
 pub mod eval;
-#[cfg(test)]
 pub mod monomorphic;
 pub mod naive;
 
-use crate::recursive::gat::*;
-
-use crate::{
+use recursion::{
     map_layer::MapLayer,
-    recursive::gat::PartiallyApplied,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
+use recursion_schemes::functor::{Functor, PartiallyApplied};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]

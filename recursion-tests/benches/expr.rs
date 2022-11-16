@@ -1,11 +1,9 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use recursion::{
-    examples::expr::{
-        eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
-        naive::ExprAST,
-        BlocAllocExpr, DFSStackExpr, Expr,
-    },
-    recursive::{Collapse, Expand},
+use recursion::recursive::{Collapse, Expand};
+use recursion_tests::expr::{
+    eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
+    naive::ExprAST,
+    BlocAllocExpr, DFSStackExpr, Expr,
 };
 
 fn bench_eval(criterion: &mut Criterion) {
