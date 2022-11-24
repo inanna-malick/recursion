@@ -3,6 +3,7 @@ use crate::expr::Expr;
 #[cfg(test)]
 use crate::expr::naive::arb_expr;
 use crate::expr::naive::{generate_layer, ExprAST};
+use futures::future::BoxFuture;
 #[cfg(test)]
 use proptest::proptest;
 use recursion::map_layer::MapLayer;
@@ -80,6 +81,17 @@ pub fn eval_layer(node: Expr<i64>) -> i64 {
     }
 }
 
+pub fn eval_layer_async<'a>(node: Expr<i64>) -> BoxFuture<'a, i64> {
+    use futures::FutureExt;
+    futures::future::ready(match node {
+        Expr::Add(a, b) => a + b,
+        Expr::Sub(a, b) => a - b,
+        Expr::Mul(a, b) => a * b,
+        Expr::LiteralInt(x) => x,
+    })
+    .boxed()
+}
+
 pub fn naive_eval(expr: &ExprAST) -> i64 {
     match expr {
         ExprAST::Add(a, b) => naive_eval(a) + naive_eval(b),
@@ -121,6 +133,22 @@ proptest! {
         // let lazy_eval_et = eval_lazy_et(&expr);
 
         let eval_gat = expr.fold_recursive(eval_layer);
+
+
+        let eval_gat_async ={
+            use recursion_schemes::join_future::{RecursiveAsyncExt};
+            use std::sync::Arc;
+
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+
+            rt.block_on(async {
+                Box::new(expr.clone()).fold_recursive_async(Arc::new(eval_layer_async)).await
+            })
+        };
+
+
+
 
         // example of partial expansion, will fail for multiply case
         // let eval_gat_partial = {
@@ -175,6 +203,7 @@ proptest! {
         assert_eq!(simple, eval_gat);
         // assert_eq!(simple, eval_gat_partial);
         assert_eq!(simple, eval_gat_with_ctx);
+        assert_eq!(simple, eval_gat_async);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }

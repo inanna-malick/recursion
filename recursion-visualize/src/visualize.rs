@@ -97,7 +97,10 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
             txt: _,
             seeds: _,
         } => 0,
-        VizAction::CollapseNode { target_id: _, txt: _ } => 1,
+        VizAction::CollapseNode {
+            target_id: _,
+            txt: _,
+        } => 1,
     });
     let actions: Vec<Value> = actions
         .into_iter()

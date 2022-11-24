@@ -2,6 +2,7 @@ use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
 use recursion_schemes::functor::Functor;
+use recursion_schemes::join_future::RecursiveAsync;
 use recursion_schemes::recursive::Recursive;
 
 /// simple naive representation of a recursive expression AST.
@@ -23,6 +24,29 @@ impl Recursive for &ExprAST {
             ExprAST::Mul(a, b) => Expr::Mul(a, b),
             ExprAST::LiteralInt(x) => Expr::LiteralInt(*x),
         }
+    }
+}
+
+impl RecursiveAsync for Box<ExprAST> {
+    type JoinFutureToken = Expr<PartiallyApplied>;
+
+    fn into_layer(
+        self,
+    ) -> BoxFuture<
+        'static,
+        <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
+            Self,
+        >,
+    > {
+        async {
+            match *self {
+                ExprAST::Add(a, b) => Expr::Add(a, b),
+                ExprAST::Sub(a, b) => Expr::Sub(a, b),
+                ExprAST::Mul(a, b) => Expr::Mul(a, b),
+                ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
+            }
+        }
+        .boxed()
     }
 }
 

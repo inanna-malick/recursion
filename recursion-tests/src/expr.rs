@@ -2,11 +2,15 @@ pub mod eval;
 pub mod monomorphic;
 pub mod naive;
 
+use futures::future::{BoxFuture, FutureExt};
 use recursion::{
     map_layer::MapLayer,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
-use recursion_schemes::functor::{Functor, PartiallyApplied};
+use recursion_schemes::{
+    functor::{Functor, PartiallyApplied},
+    join_future::JoinFuture,
+};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
@@ -30,6 +34,34 @@ impl Functor for Expr<PartiallyApplied> {
             Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
             Expr::LiteralInt(x) => Expr::LiteralInt(x),
         }
+    }
+}
+
+impl JoinFuture for Expr<PartiallyApplied> {
+    type FunctorToken = Expr<PartiallyApplied>;
+
+    fn join_layer<A: Send + 'static>(
+        input: <<Self as JoinFuture>::FunctorToken as Functor>::Layer<BoxFuture<'static, A>>,
+    ) -> BoxFuture<'static, <<Self as JoinFuture>::FunctorToken as Functor>::Layer<A>> {
+        async {
+            use futures::future::join;
+            match input {
+                Expr::Add(a, b) => {
+                    let (a, b) = join(a, b).await;
+                    Expr::Add(a, b)
+                }
+                Expr::Sub(a, b) => {
+                    let (a, b) = join(a, b).await;
+                    Expr::Sub(a, b)
+                }
+                Expr::Mul(a, b) => {
+                    let (a, b) = join(a, b).await;
+                    Expr::Mul(a, b)
+                }
+                Expr::LiteralInt(x) => Expr::LiteralInt(x),
+            }
+        }
+        .boxed()
     }
 }
 

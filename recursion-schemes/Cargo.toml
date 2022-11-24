@@ -14,4 +14,7 @@ backcompat = ["recursion"]
 
 [dependencies]
 futures = "0.3"
+
+tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", "io-util", "sync"]}
+
 recursion = {path = "../recursion", version = "0.4", optional = true}
