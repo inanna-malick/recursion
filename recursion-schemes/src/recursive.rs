@@ -15,27 +15,6 @@ where
 }
 
 
-// Note 
-type Alg<F, A> = dyn Fn(&<<F as Recursive>::FunctorToken as Functor>::Layer<A>) -> A;
-type CoAlg<F, A> = dyn Fn(&A) -> <<F as Recursive>::FunctorToken as Functor>::Layer<A>;
-
-pub struct Annotated<R: Recursive, A> {
-    pub wrapped: R,
-    pub f: Arc<Alg<R, A>>,
-}
-
-impl<R: Recursive, A> Recursive for Annotated<R, A> {
-    type FunctorToken = Compose<(A, PartiallyApplied), R::FunctorToken>;
-
-    fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
-        let layer = R::into_layer(self.wrapped);
-        let layer = ((self.f)(&layer), layer);
-        Self::FunctorToken::fmap(layer, move |wrapped| Annotated {
-            wrapped,
-            f: self.f.clone(),
-        })
-    }
-}
 
 // TODO: futumorphism to allow for partial non-async expansion? yes! but (I think) needs to be erased for collapse phase
 // TODO: b/c at that point there's no need for that info..
@@ -53,6 +32,7 @@ impl<R: Recursive + Copy> Recursive for WithContext<R> {
 
 pub struct PartialExpansion<R: Recursive> {
     pub wrapped: R,
+    #[allow(clippy::type_complexity)]
     pub f: Arc<
         // TODO: probably doesn't need to be an arc but (shrug emoji)
         dyn Fn(

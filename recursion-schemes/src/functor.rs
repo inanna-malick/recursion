@@ -22,6 +22,7 @@ impl<F1: Functor, F2: Functor> Functor for Compose<F1, F2> {
     where
         F: FnMut(A) -> B,
     {
+        #[allow(clippy::redundant_closure)] // this lint is wrong here
         F1::fmap(input, move |x| F2::fmap(x, |x| f(x)))
     }
 }
