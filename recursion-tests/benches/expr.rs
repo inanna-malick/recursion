@@ -1,5 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use recursion::recursive::{Collapse, Expand};
+use recursion_schemes::recursive::RecursiveExt;
 use recursion_tests::expr::{
     eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
     naive::ExprAST,
@@ -69,6 +70,14 @@ fn bench_eval(criterion: &mut Criterion) {
             &boxed_big_expr,
             |b, expr| b.iter(|| eval_lazy_with_fused_compile(expr)),
         );
+
+        group.bench_with_input(
+            BenchmarkId::new("fold stack_machine lazy with new GAT-based model", depth),
+            &boxed_big_expr,
+            |b, expr| b.iter(|| expr.fold_recursive(eval_layer)),
+        );
+
+
     }
     group.finish();
 }

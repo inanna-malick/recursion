@@ -1,6 +1,6 @@
-use std::{hash::Hash, sync::Arc};
+use std::sync::Arc;
 
-use futures::{future::BoxFuture, Future, FutureExt};
+use futures::{future::BoxFuture, FutureExt};
 
 use crate::functor::Functor;
 // use chashmap::CHashMap;

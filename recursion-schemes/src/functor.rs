@@ -3,7 +3,9 @@ use recursion::map_layer::MapLayer;
 #[cfg(feature = "backcompat")]
 use std::marker::PhantomData;
 
-pub trait Functor {
+pub trait Functor // where
+//     Self: Self::Layer<PartiallyApplied>,
+{
     type Layer<X>;
 
     fn fmap<F, A, B>(input: Self::Layer<A>, f: F) -> Self::Layer<B>

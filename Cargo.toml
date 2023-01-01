@@ -5,6 +5,5 @@ members = [
   "recursion-visualize",
   "recursion-tests",
   "recursion-schemes",
-#  "recursion-filetree-example",
 ]
 

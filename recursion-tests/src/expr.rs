@@ -24,6 +24,7 @@ pub enum Expr<A> {
 impl Functor for Expr<PartiallyApplied> {
     type Layer<X> = Expr<X>;
 
+    #[inline(always)]
     fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
     where
         F: FnMut(A) -> B,

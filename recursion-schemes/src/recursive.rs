@@ -14,12 +14,14 @@ where
     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self>;
 }
 
+
+// Note 
+type Alg<F, A> = dyn Fn(&<<F as Recursive>::FunctorToken as Functor>::Layer<A>) -> A;
+type CoAlg<F, A> = dyn Fn(&A) -> <<F as Recursive>::FunctorToken as Functor>::Layer<A>;
+
 pub struct Annotated<R: Recursive, A> {
     pub wrapped: R,
-    pub f: Arc<
-        // TODO: probably doesn't need to be an arc but (shrug emoji)
-        dyn Fn(&<<R as Recursive>::FunctorToken as Functor>::Layer<R>) -> A,
-    >,
+    pub f: Arc<Alg<R, A>>,
 }
 
 impl<R: Recursive, A> Recursive for Annotated<R, A> {
