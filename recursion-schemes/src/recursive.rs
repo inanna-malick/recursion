@@ -83,8 +83,8 @@ where
 
     fn expand_and_collapse<Seed, Out>(
         seed: Seed,
-        mut expand_layer: impl FnMut(Seed) -> <<X as Recursive>::FunctorToken as Functor>::Layer<Seed>,
-        mut collapse_layer: impl FnMut(<<X as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
+        expand_layer: impl FnMut(Seed) -> <<X as Recursive>::FunctorToken as Functor>::Layer<Seed>,
+        collapse_layer: impl FnMut(<<X as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
     ) -> Out {
         <X as Recursive>::FunctorToken::expand_and_collapse(seed, expand_layer, collapse_layer)
     }
