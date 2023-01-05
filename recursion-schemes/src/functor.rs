@@ -53,6 +53,51 @@ impl<Fst> Functor for (Fst, PartiallyApplied) {
     }
 }
 
+pub trait FunctorExt: Functor {
+    fn expand_and_collapse<Seed, Out>(
+        seed: Seed,
+        expand_layer: impl FnMut(Seed) -> <Self as Functor>::Layer<Seed>,
+        collapse_layer: impl FnMut(<Self as Functor>::Layer<Out>) -> Out,
+    ) -> Out;
+}
+
+impl<X> FunctorExt for X
+where
+    X: Functor,
+{
+    fn expand_and_collapse<Seed, Out>(
+        seed: Seed,
+        mut expand_layer: impl FnMut(Seed) -> <X as Functor>::Layer<Seed>,
+        mut collapse_layer: impl FnMut(<X as Functor>::Layer<Out>) -> Out,
+    ) -> Out {
+        enum State<Seed, CollapsableInternal> {
+            Expand(Seed),
+            Collapse(CollapsableInternal),
+        }
+
+        let mut vals: Vec<Out> = vec![];
+        let mut stack = vec![State::Expand(seed)];
+
+        while let Some(item) = stack.pop() {
+            match item {
+                State::Expand(seed) => {
+                    let node = expand_layer(seed);
+                    let mut seeds = Vec::new();
+                    let node = Self::fmap(node, |seed| seeds.push(seed));
+
+                    stack.push(State::Collapse(node));
+                    stack.extend(seeds.into_iter().map(State::Expand));
+                }
+                State::Collapse(node) => {
+                    let node = Self::fmap(node, |_: ()| vals.pop().unwrap());
+                    vals.push(collapse_layer(node))
+                }
+            };
+        }
+        vals.pop().unwrap()
+    }
+}
+
 #[cfg(feature = "backcompat")]
 pub struct MapLayerFromFunctor<Layer, Unwrapped, F: Functor>(
     Layer,

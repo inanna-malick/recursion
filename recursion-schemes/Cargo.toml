@@ -1,6 +1,6 @@
 [package]
 name = "recursion-schemes"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "cache-aware stack safe recursion (this is the really haskell brained one)"
 license = "MIT OR Apache-2.0"

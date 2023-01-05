@@ -3,7 +3,7 @@ use std::sync::Arc;
 #[cfg(feature = "backcompat")]
 use recursion::Collapse;
 
-use crate::functor::{Compose, Functor, PartiallyApplied};
+use crate::functor::{Compose, Functor, FunctorExt, PartiallyApplied};
 
 pub trait Recursive
 where
@@ -13,8 +13,6 @@ where
 
     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self>;
 }
-
-
 
 // TODO: futumorphism to allow for partial non-async expansion? yes! but (I think) needs to be erased for collapse phase
 // TODO: b/c at that point there's no need for that info..
@@ -88,31 +86,7 @@ where
         mut expand_layer: impl FnMut(Seed) -> <<X as Recursive>::FunctorToken as Functor>::Layer<Seed>,
         mut collapse_layer: impl FnMut(<<X as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
     ) -> Out {
-        enum State<Seed, CollapsableInternal> {
-            Expand(Seed),
-            Collapse(CollapsableInternal),
-        }
-
-        let mut vals: Vec<Out> = vec![];
-        let mut stack = vec![State::Expand(seed)];
-
-        while let Some(item) = stack.pop() {
-            match item {
-                State::Expand(seed) => {
-                    let node = expand_layer(seed);
-                    let mut seeds = Vec::new();
-                    let node = Self::FunctorToken::fmap(node, |seed| seeds.push(seed));
-
-                    stack.push(State::Collapse(node));
-                    stack.extend(seeds.into_iter().map(State::Expand));
-                }
-                State::Collapse(node) => {
-                    let node = Self::FunctorToken::fmap(node, |_: ()| vals.pop().unwrap());
-                    vals.push(collapse_layer(node))
-                }
-            };
-        }
-        vals.pop().unwrap()
+        <X as Recursive>::FunctorToken::expand_and_collapse(seed, expand_layer, collapse_layer)
     }
 }
 

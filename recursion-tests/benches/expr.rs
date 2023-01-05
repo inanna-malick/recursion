@@ -76,8 +76,6 @@ fn bench_eval(criterion: &mut Criterion) {
             &boxed_big_expr,
             |b, expr| b.iter(|| expr.fold_recursive(eval_layer)),
         );
-
-
     }
     group.finish();
 }
