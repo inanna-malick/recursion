@@ -14,6 +14,18 @@ where
     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self>;
 }
 
+/// heap allocated fix point of some Functor
+pub struct Fix<F: Functor>(pub Box<F::Layer<Fix<F>>>);
+
+// recursing over a fix point structure is free
+impl<F: Functor> Recursive for Fix<F> {
+    type FunctorToken = F;
+
+    fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
+        *self.0
+    }
+}
+
 // TODO: futumorphism to allow for partial non-async expansion? yes! but (I think) needs to be erased for collapse phase
 // TODO: b/c at that point there's no need for that info..
 
