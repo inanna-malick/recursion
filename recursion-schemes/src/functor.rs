@@ -13,6 +13,25 @@ pub trait Functor // where
         F: FnMut(A) -> B;
 }
 
+// the typeclass hierarchy here is a mess but this is ok for now
+// basic idea is that this is for working with cases where we clone the fmap'd-over structure while only borrowing the things inside it? yeah
+// sort of similar to Option::as_ref()
+pub trait FunctorRef: Functor {
+    // fn fmap_ref<F, A, B>(input: &<Self as Functor>::Layer<A>, f: F) -> <Self as Functor>::Layer<B>
+    // where
+    //     F: FnMut(&A) -> B;
+
+    fn as_ref<A>(input: &<Self as Functor>::Layer<A>) -> <Self as Functor>::Layer<&A>;
+}
+
+pub trait TraverseResult // where
+//     Self: Self::Layer<PartiallyApplied>,
+{
+    type Layer<X>;
+
+    fn flatten<A, E>(input: Self::Layer<Result<A, E>>) -> Result<Self::Layer<A>, E>;
+}
+
 pub struct Compose<F1, F2>(std::marker::PhantomData<F1>, std::marker::PhantomData<F2>);
 
 impl<F1: Functor, F2: Functor> Functor for Compose<F1, F2> {
@@ -27,6 +46,7 @@ impl<F1: Functor, F2: Functor> Functor for Compose<F1, F2> {
     }
 }
 
+#[derive(Debug)]
 pub enum PartiallyApplied {}
 
 // used to represent partial expansion
@@ -50,6 +70,56 @@ impl<Fst> Functor for (Fst, PartiallyApplied) {
         F: FnMut(A) -> B,
     {
         (input.0, f(input.1))
+    }
+}
+
+pub trait FunctorRefExt: FunctorRef {
+    fn expand_and_collapse_ref<'a, Seed, Out>(
+        seed: &'a Seed,
+        expand_layer: impl FnMut(&'a Seed) -> &'a <Self as Functor>::Layer<Seed>,
+        collapse_layer: impl FnMut(<Self as Functor>::Layer<Out>) -> Out,
+    ) -> Out
+    where
+        <Self as Functor>::Layer<Seed>: 'a;
+}
+
+impl<X> FunctorRefExt for X
+where
+    X: FunctorRef,
+{
+    fn expand_and_collapse_ref<'a, Seed, Out>(
+        seed: &'a Seed,
+        mut expand_layer: impl FnMut(&'a Seed) -> &'a <X as Functor>::Layer<Seed>,
+        mut collapse_layer: impl FnMut(<X as Functor>::Layer<Out>) -> Out,
+    ) -> Out
+    where
+        <X as Functor>::Layer<Seed>: 'a,
+    {
+        enum State<Seed, CollapsableInternal> {
+            Expand(Seed),
+            Collapse(CollapsableInternal),
+        }
+
+        let mut vals: Vec<Out> = vec![];
+        let mut stack: Vec<State<_, _>> = vec![State::Expand(seed)];
+
+        while let Some(item) = stack.pop() {
+            match item {
+                State::Expand(seed) => {
+                    let node = expand_layer(seed);
+                    let mut seeds: Vec<&Seed> = Vec::new();
+                    let node = Self::fmap(Self::as_ref(node), |seed| seeds.push(seed));
+
+                    stack.push(State::Collapse(node));
+                    stack.extend(seeds.into_iter().map(State::Expand));
+                }
+                State::Collapse(node) => {
+                    let node = Self::fmap(node, |_: ()| vals.pop().unwrap());
+                    vals.push(collapse_layer(node))
+                }
+            };
+        }
+        vals.pop().unwrap()
     }
 }
 

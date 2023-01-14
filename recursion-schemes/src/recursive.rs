@@ -1,9 +1,13 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 #[cfg(feature = "backcompat")]
 use recursion::Collapse;
 
-use crate::functor::{Compose, Functor, FunctorExt, PartiallyApplied};
+use crate::functor::{
+    Compose, Functor, FunctorExt, FunctorRef, FunctorRefExt, PartiallyApplied, TraverseResult,
+};
+
+use core::fmt::Debug;
 
 pub trait Recursive
 where
@@ -16,6 +20,50 @@ where
 
 /// heap allocated fix point of some Functor
 pub struct Fix<F: Functor>(pub Box<F::Layer<Fix<F>>>);
+
+impl<F: Functor> Fix<F> {
+    pub fn as_ref(&self) -> &F::Layer<Self> {
+        self.0.as_ref()
+    }
+}
+
+// impl<F: Functor + TraverseResult> Debug for Fix<F> where
+//   F::Layer<String>: Debug,
+// {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         F::expand_and_collapse(self, |layer| layer.0, |layer| |fmt| {
+//             // TODO: instead of building a nested closure thing, could we thread the formatter through as we do the expand step?
+//             let layer = F::fmap(layer, |x| x(fmt));
+//             F::flatten(layer).map( |layer| {
+//                 format!("{:?}")
+//             })
+//         })
+//         f.debug_tuple("Fix").field(&self.0).finish()
+//     }
+// }
+
+// impl<F: Functor> Deref for Fix<F> {
+//     type Target = &F::Layer<&Self>;
+
+//     fn deref(&self) -> &Self::Target {
+//         F.
+//     }
+// }
+
+impl<F: Functor + FunctorRef> Debug for Fix<F>
+where
+    <F as Functor>::Layer<String>: Debug,
+{
+    // TODO: thread actual fmt'r through instead of just repeatedly constructing strings, but eh - is fine for now
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = F::expand_and_collapse_ref(
+            self,
+            |x:&Self| -> &<F as Functor>::Layer<Self> { x.0.as_ref() },
+            |layer: <F as Functor>::Layer<String>| -> String { format!("Fix({:?})", layer) },
+        );
+        f.write_str(&s)
+    }
+}
 
 impl<F: Functor> Fix<F> {
     pub fn new(x: F::Layer<Self>) -> Self {
