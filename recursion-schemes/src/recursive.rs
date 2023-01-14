@@ -19,6 +19,7 @@ where
 }
 
 /// heap allocated fix point of some Functor
+// #[derive(Debug)]
 pub struct Fix<F: Functor>(pub Box<F::Layer<Fix<F>>>);
 
 impl<F: Functor> Fix<F> {
@@ -26,6 +27,7 @@ impl<F: Functor> Fix<F> {
         self.0.as_ref()
     }
 }
+
 
 // impl<F: Functor + TraverseResult> Debug for Fix<F> where
 //   F::Layer<String>: Debug,
@@ -50,16 +52,18 @@ impl<F: Functor> Fix<F> {
 //     }
 // }
 
+
+// TODO: mb this just doesn't exist? this is janky af
 impl<F: Functor + FunctorRef> Debug for Fix<F>
 where
-    <F as Functor>::Layer<String>: Debug,
+    <F as Functor>::Layer<String>: std::fmt::Display,
 {
     // TODO: thread actual fmt'r through instead of just repeatedly constructing strings, but eh - is fine for now
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = F::expand_and_collapse_ref(
             self,
             |x:&Self| -> &<F as Functor>::Layer<Self> { x.0.as_ref() },
-            |layer: <F as Functor>::Layer<String>| -> String { format!("Fix({:?})", layer) },
+            |layer: <F as Functor>::Layer<String>| -> String { format!("{}", layer) },
         );
         f.write_str(&s)
     }
