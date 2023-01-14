@@ -4,6 +4,8 @@ version = "0.3.4"
 edition = "2021"
 description = "cache-aware stack safe recursion"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/inanna-malick/recursion"
+documentation = "https://docs.rs/recursion"
 
 [features]
 default = []
