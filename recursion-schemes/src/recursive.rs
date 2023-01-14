@@ -17,6 +17,12 @@ where
 /// heap allocated fix point of some Functor
 pub struct Fix<F: Functor>(pub Box<F::Layer<Fix<F>>>);
 
+impl<F: Functor> Fix<F> {
+    pub fn new(x: F::Layer<Self>) -> Self {
+        Self(Box::new(x))
+    }
+}
+
 // recursing over a fix point structure is free
 impl<F: Functor> Recursive for Fix<F> {
     type FunctorToken = F;
