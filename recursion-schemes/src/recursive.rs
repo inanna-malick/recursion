@@ -1,10 +1,11 @@
-use std::{ops::Deref, sync::Arc};
+use std::{cell::Ref, ops::Deref, sync::Arc};
 
 #[cfg(feature = "backcompat")]
 use recursion::Collapse;
 
 use crate::functor::{
-    Compose, Functor, FunctorExt, FunctorRef, FunctorRefExt, PartiallyApplied, TraverseResult,
+    AsRefF, Compose, Functor, FunctorExt, FunctorRef, FunctorRefExt, PartiallyApplied, ToOwnedF,
+    TraverseResult,
 };
 
 use core::fmt::Debug;
@@ -27,7 +28,6 @@ impl<F: Functor> Fix<F> {
         self.0.as_ref()
     }
 }
-
 
 // impl<F: Functor + TraverseResult> Debug for Fix<F> where
 //   F::Layer<String>: Debug,
@@ -52,18 +52,30 @@ impl<F: Functor> Fix<F> {
 //     }
 // }
 
+impl<F: AsRefF> Clone for Fix<F> 
+where 
+    for<'a> F::RefFunctor<'a>: ToOwnedF<OwnedFunctor = F>
+{
+    fn clone(&self) -> Self {
+        <F::RefFunctor<'_>>::expand_and_collapse(
+            self,
+            |x| F::as_ref(x.as_ref()),
+            |x| Fix::new(<F::RefFunctor<'_>>::to_owned(x)),
+        )
+    }
+}
 
 // TODO: mb this just doesn't exist? this is janky af
-impl<F: Functor + FunctorRef> Debug for Fix<F>
+impl<F: for<'a> AsRefF<RefFunctor<'a> = G>, G: Functor> Debug for Fix<F>
 where
-    <F as Functor>::Layer<String>: std::fmt::Display,
+    <G as Functor>::Layer<String>: std::fmt::Display,
 {
     // TODO: thread actual fmt'r through instead of just repeatedly constructing strings, but eh - is fine for now
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = F::expand_and_collapse_ref(
+        let s = G::expand_and_collapse(
             self,
-            |x:&Self| -> &<F as Functor>::Layer<Self> { x.0.as_ref() },
-            |layer: <F as Functor>::Layer<String>| -> String { format!("{}", layer) },
+            |x: &Self| -> <G as Functor>::Layer<&Self> { F::as_ref(x.as_ref()) },
+            |layer: <G as Functor>::Layer<String>| -> String { format!("{}", layer) },
         );
         f.write_str(&s)
     }
@@ -81,6 +93,15 @@ impl<F: Functor> Recursive for Fix<F> {
 
     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
         *self.0
+    }
+}
+
+// note could mb have another name for fold_recursive for borrowed data? would make API cleaner mb
+impl<'a, F: Functor + AsRefF> Recursive for &'a Fix<F> {
+    type FunctorToken = F::RefFunctor<'a>;
+
+    fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
+        F::as_ref(self.as_ref())
     }
 }
 

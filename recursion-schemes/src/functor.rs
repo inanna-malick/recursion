@@ -24,9 +24,23 @@ pub trait FunctorRef: Functor {
     fn as_ref<A>(input: &<Self as Functor>::Layer<A>) -> <Self as Functor>::Layer<&A>;
 }
 
-pub trait TraverseResult // where
-//     Self: Self::Layer<PartiallyApplied>,
-{
+pub trait AsRefF: Functor {
+    // type RefLayer<'a, X>: Functor;
+    type RefFunctor<'a>: Functor;
+
+    fn as_ref<'a, A>(
+        input: &'a <Self as Functor>::Layer<A>,
+    ) -> <Self::RefFunctor<'a> as Functor>::Layer<&'a A>;
+}
+
+pub trait ToOwnedF: Functor {
+    type OwnedFunctor: Functor;
+
+    fn to_owned<A>(input: <Self as Functor>::Layer<A>)
+        -> <Self::OwnedFunctor as Functor>::Layer<A>;
+}
+
+pub trait TraverseResult {
     type Layer<X>;
 
     fn flatten<A, E>(input: Self::Layer<Result<A, E>>) -> Result<Self::Layer<A>, E>;
@@ -72,6 +86,18 @@ impl<Fst> Functor for (Fst, PartiallyApplied) {
         (input.0, f(input.1))
     }
 }
+
+// pub trait FunctorRefExt2: AsRefF {
+//     fn expand_and_collapse_ref<'a, Seed, Out>(
+//         seed: Seed,
+//         expand_layer: impl FnMut(&'a Seed) -> &'a <Self as AsRefF>::RefLayer<Seed>,
+//         collapse_layer: impl FnMut(<Self as Functor>::Layer<Out>) -> Out,
+//     ) -> Out
+//     where
+//         <Self as Functor>::Layer<Seed>: 'a,
+//         Seed: 'a,
+//         Out: 'a;
+// }
 
 pub trait FunctorRefExt: FunctorRef {
     fn expand_and_collapse_ref<'a, Seed, Out>(
