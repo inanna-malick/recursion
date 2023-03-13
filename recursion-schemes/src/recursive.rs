@@ -1,11 +1,11 @@
-use std::{cell::Ref, ops::Deref, sync::Arc};
+use std::{cell::Ref, marker::PhantomData, ops::Deref, sync::Arc};
 
 #[cfg(feature = "backcompat")]
 use recursion::Collapse;
 
 use crate::functor::{
-    AsRefF, Compose, Functor, FunctorExt, FunctorRef, FunctorRefExt, PartiallyApplied, ToOwnedF,
-    TraverseResult,
+    AsRefF, Compose, EqF, Functor, FunctorExt, FunctorRef, FunctorRefExt, PairFunctor, Paired,
+    PartiallyApplied, ToOwnedF, TraverseResult,
 };
 
 use core::fmt::Debug;
@@ -19,6 +19,34 @@ where
     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self>;
 }
 
+pub trait Recursive2
+where
+    Self: Sized,
+{
+    type FunctorToken: Functor;
+
+    // self is probably &'a of something
+    fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self>;
+}
+
+pub trait Corecursive
+where
+    Self: Sized,
+{
+    type FunctorToken: Functor;
+
+    // likely invokes clone
+    fn from_layer(x: <Self::FunctorToken as Functor>::Layer<Self>) -> Self;
+}
+
+pub fn into_fix<X: Recursive>(x: X) -> Fix<X::FunctorToken> {
+    X::FunctorToken::expand_and_collapse(x, X::into_layer, Fix::new)
+}
+
+pub fn from_fix<X: Corecursive>(x: Fix<X::FunctorToken>) -> X {
+    Fix::<X::FunctorToken>::fold_recursive(x, X::from_layer)
+}
+
 /// heap allocated fix point of some Functor
 // #[derive(Debug)]
 pub struct Fix<F: Functor>(pub Box<F::Layer<Fix<F>>>);
@@ -28,6 +56,26 @@ impl<F: Functor> Fix<F> {
         self.0.as_ref()
     }
 }
+
+// impl<'a, F: Functor> Recursive for &'a Fix<F> {
+//     type FunctorToken = BorrowedFunctor<'a, F>;
+
+//     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
+//         todo!()
+//     }
+// }
+
+// struct BorrowedFunctor<'a, F>(PhantomData<&'a F>);
+
+// impl<'a, G: Functor> Functor for BorrowedFunctor<'a, G> {
+//     type Layer<X> = &'a G::Layer<&'a X>;
+
+//     fn fmap<F, A, B>(input: Self::Layer<A>, f: F) -> Self::Layer<B>
+//     where
+//         F: FnMut(A) -> B {
+//         todo!()
+//     }
+// }
 
 // impl<F: Functor + TraverseResult> Debug for Fix<F> where
 //   F::Layer<String>: Debug,
@@ -52,9 +100,15 @@ impl<F: Functor> Fix<F> {
 //     }
 // }
 
-impl<F: AsRefF> Clone for Fix<F> 
-where 
-    for<'a> F::RefFunctor<'a>: ToOwnedF<OwnedFunctor = F>
+// note to future me:
+// ok so - the AsRefF is just about being able to grab a _borrowed_ functor
+// that we can use for the traversal and the ToOwnedF is about being able to turn
+// those borrowed functor frames back into something owned (via clone)
+// stated differently: cloning a recursive structure is just round tripping through
+// ref form back into owned form - recursively descending ref's and cloning to rebuild
+impl<F: AsRefF> Clone for Fix<F>
+where
+    for<'a> F::RefFunctor<'a>: ToOwnedF<OwnedFunctor = F>,
 {
     fn clone(&self) -> Self {
         <F::RefFunctor<'_>>::expand_and_collapse(
@@ -64,6 +118,43 @@ where
         )
     }
 }
+
+// ok I feel like god is talking to me, and is saying yo: have Fix be a fucking projection from some base type
+// like fucking do it this is insane. ok. yes.
+// impl<F: EqF> PartialEq for Fix<F>
+// {
+//     fn eq(&self, other: &Self) -> bool {
+//         type Func = Compose<Option<PartiallyApplied>, Compose<F::RefFunctor<'_>, PairFunctor>>;
+//         <Func as Functor>::expand_and_collapse(
+//             Some(F::pair_if_eq(self, other)),
+//             |x| x.map(|(a,b)| F::pair_if_eq(a, b)),
+//             |x| match x {
+//                 None => false,
+//                 Some(x) => {
+//                     let mut bools = Vec::new();
+//                     <F as AsRefF>::fmap(x, f)
+//                 }
+
+//             }
+//         )
+//     }
+// }
+
+// impl<F: AsRefF> PartialEq for Fix<F>
+// where
+//     for<'a> <F::RefFunctor<'a> as Functor>::Layer<bool>: Eq,
+// {
+//     // fn assert_receiver_is_total_eq(&self) {}
+
+//     fn eq(&self, other: &Self) -> bool {
+//         // wait fuck this doesn't work
+//         <Paired<F::RefFunctor<'_>>>::expand_and_collapse(
+//             (self, other),
+//             |(a, b)| (F::as_ref(a.as_ref()), F::as_ref(b.as_ref())),
+//             |_| a == b,
+//         )
+//     }
+// }
 
 // TODO: mb this just doesn't exist? this is janky af
 impl<F: for<'a> AsRefF<RefFunctor<'a> = G>, G: Functor> Debug for Fix<F>
@@ -93,6 +184,14 @@ impl<F: Functor> Recursive for Fix<F> {
 
     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
         *self.0
+    }
+}
+
+impl<F: Functor> Corecursive for Fix<F> {
+    type FunctorToken = F;
+
+    fn from_layer(x: <Self::FunctorToken as Functor>::Layer<Self>) -> Self {
+        Fix::new(x)
     }
 }
 
@@ -141,14 +240,29 @@ impl<R: Recursive> Recursive for PartialExpansion<R> {
         })
     }
 }
+pub trait CorecursiveExt: Corecursive {
+    fn unfold_recursive<In>(
+        input: In,
+        expand_layer: impl FnMut(In) -> <<Self as Corecursive>::FunctorToken as Functor>::Layer<In>,
+    ) -> Self;
+}
+
+impl<X> CorecursiveExt for X
+where
+    X: Corecursive,
+{
+    fn unfold_recursive<In>(
+        input: In,
+        expand_layer: impl FnMut(In) -> <<Self as Corecursive>::FunctorToken as Functor>::Layer<In>,
+    ) -> Self {
+        <X as Corecursive>::FunctorToken::expand_and_collapse(input, expand_layer, Self::from_layer)
+    }
+}
 
 pub trait RecursiveExt: Recursive {
-    fn fold_recursive<
-        Out,
-        F: FnMut(<<Self as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
-    >(
+    fn fold_recursive<Out>(
         self,
-        collapse_layer: F,
+        collapse_layer: impl FnMut(<<Self as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
     ) -> Out;
 
     fn expand_and_collapse<Seed, Out>(
@@ -162,12 +276,9 @@ impl<X> RecursiveExt for X
 where
     X: Recursive,
 {
-    fn fold_recursive<
-        Out,
-        F: FnMut(<<X as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
-    >(
+    fn fold_recursive<Out>(
         self,
-        collapse_layer: F,
+        collapse_layer: impl FnMut(<<Self as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
     ) -> Out {
         Self::expand_and_collapse(self, Self::into_layer, collapse_layer)
     }

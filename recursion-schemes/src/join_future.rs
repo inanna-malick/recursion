@@ -3,42 +3,25 @@ use std::sync::Arc;
 use futures::{future::BoxFuture, FutureExt};
 
 use crate::functor::Functor;
-// use chashmap::CHashMap;
+use crate::recursive::Corecursive;
 use tokio::sync::oneshot;
-// use chashmap::CHashMap;
 
-// TODO: rename mb? also, note: unable to use this for the below stuff b/c types will be INSANE
-// pub trait Join: Functor {
-//     type Joinable<X>;
-
-//     type FunctorToken;
-
-//     fn join_layer_generic<A>(
-//         input: Self::FunctorToken::Layer<Self::Joinable<A>>,
-//     ) -> Self::Joinable<Self::FunctorToken::Layer<A>>;
-// }
-
-pub trait JoinFuture {
-    type FunctorToken: Functor + Send + Sync;
-
+pub trait JoinFuture: Functor {
     fn join_layer<A: Send + 'static>(
-        input: <<Self as JoinFuture>::FunctorToken as Functor>::Layer<BoxFuture<'static, A>>,
-    ) -> BoxFuture<'static, <<Self as JoinFuture>::FunctorToken as Functor>::Layer<A>>;
+        input: <Self as Functor>::Layer<BoxFuture<'static, A>>,
+    ) -> BoxFuture<'static, <Self as Functor>::Layer<A>>;
 }
 
 pub fn expand_and_collapse_async<Seed, Out, F: JoinFuture>(
     seed: Seed,
     expand_layer: Arc<
-        dyn Fn(
-                Seed,
-            )
-                -> BoxFuture<'static, <<F as JoinFuture>::FunctorToken as Functor>::Layer<Seed>>
+        dyn Fn(Seed) -> BoxFuture<'static, <F as Functor>::Layer<Seed>>
             + Send
             + Sync
             + 'static,
     >,
     collapse_layer: Arc<
-        dyn Fn(<<F as JoinFuture>::FunctorToken as Functor>::Layer<Out>) -> BoxFuture<'static, Out>
+        dyn Fn(<F as Functor>::Layer<Out>) -> BoxFuture<'static, Out>
             + Send
             + Sync
             + 'static,
@@ -48,8 +31,8 @@ where
     F: 'static,
     Seed: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    <<F as JoinFuture>::FunctorToken as Functor>::Layer<Seed>: Send + Sync + 'static,
-    <<F as JoinFuture>::FunctorToken as Functor>::Layer<Out>: Send + Sync + 'static,
+    <F as Functor>::Layer<Seed>: Send + Sync + 'static,
+    <F as Functor>::Layer<Out>: Send + Sync + 'static,
 {
     let expand_layer1 = expand_layer.clone();
     let collapse_layer1 = collapse_layer.clone();
@@ -70,16 +53,13 @@ where
 fn expand_and_collapse_async_worker<Seed, Out, F: JoinFuture>(
     seed: Seed,
     expand_layer: Arc<
-        dyn Fn(
-                Seed,
-            )
-                -> BoxFuture<'static, <<F as JoinFuture>::FunctorToken as Functor>::Layer<Seed>>
+        dyn Fn(Seed) -> BoxFuture<'static, <F as Functor>::Layer<Seed>>
             + Send
             + Sync
             + 'static,
     >,
     collapse_layer: Arc<
-        dyn Fn(<<F as JoinFuture>::FunctorToken as Functor>::Layer<Out>) -> BoxFuture<'static, Out>
+        dyn Fn(<F as Functor>::Layer<Out>) -> BoxFuture<'static, Out>
             + Send
             + Sync
             + 'static,
@@ -90,8 +70,8 @@ where
     F: 'static,
     Seed: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    <<F as JoinFuture>::FunctorToken as Functor>::Layer<Seed>: Send + Sync + 'static,
-    <<F as JoinFuture>::FunctorToken as Functor>::Layer<Out>: Send + Sync + 'static,
+    <F as Functor>::Layer<Seed>: Send + Sync + 'static,
+    <F as Functor>::Layer<Out>: Send + Sync + 'static,
 {
     let expand_layer1 = expand_layer.clone();
     let collapse_layer1 = collapse_layer.clone();
@@ -102,7 +82,7 @@ where
                 let expand_layer2 = expand_layer1.clone();
                 let collapse_layer2 = collapse_layer1.clone();
 
-                let expanded = F::FunctorToken::fmap(layer, |x| {
+                let expanded = F::fmap(layer, |x| {
                     let (send, recieve) = oneshot::channel();
 
                     expand_and_collapse_async_worker::<Seed, Out, F>(
@@ -129,84 +109,148 @@ where
     .boxed()
 }
 
-// so many trait bounds... too many?
-pub trait RecursiveAsync
-where
-    Self: Sized,
-{
-    type JoinFutureToken: JoinFuture;
+// // so many trait bounds... too many?
+// pub trait RecursiveAsync
+// where
+//     Self: Sized,
+// {
+//     type JoinFutureToken: JoinFuture;
 
-    fn into_layer(
-        self,
-    ) -> BoxFuture<
-        'static,
-        <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-            Self,
-        >,
-    >;
-}
+//     fn into_layer(
+//         self,
+//     ) -> BoxFuture<'static, <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Self>>;
+// }
 
-pub trait RecursiveAsyncExt: RecursiveAsync {
-    fn fold_recursive_async<Out: Send + Sync + 'static>(
-        self,
-        collapse_layer: Arc<
+
+// pub trait Corecursive: Corecursive
+// where
+//     Self: Sized,
+// {
+//     type JoinFutureToken: JoinFuture;
+
+//     fn from_layer(
+//         layer: <<Self as Corecursive>::JoinFutureToken as Functor>::Layer<Self>,
+//     ) -> BoxFuture<'static, Self>;
+// }
+
+
+
+pub trait CorecursiveAsyncExt: Corecursive {
+    fn unfold_recursive_async<Seed: Send + Sync + 'static>(
+        seed: Seed,
+        expand_layer: Arc<
             dyn Fn(
-                <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-            Out,
-        >
-                ) -> BoxFuture<'static, Out>
-                + Send
+                    Seed,
+                ) -> BoxFuture<
+                    'static,
+                    <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>,
+                > + Send
                 + Sync
                 + 'static,
         >,
-    ) -> BoxFuture<'static, Out>
+    ) -> BoxFuture<'static, Self>
     where
-        <Self as RecursiveAsync>::JoinFutureToken: Functor,
+        <Self as Corecursive>::FunctorToken: JoinFuture,
         Self: Send + Sync + 'static,
-        <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-            Out,
-        >: Send + Sync,
-        <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-            Self,
-        >: Send + Sync;
+        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>: Send + Sync,
+        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Self>: Send + Sync;
 }
 
-impl<X> RecursiveAsyncExt for X
+impl<X> CorecursiveAsyncExt for X
 where
-    X: RecursiveAsync + Send + Sync,
+    X: Corecursive + Send + Sync,
 {
-    fn fold_recursive_async<Out: Send + Sync + 'static>(
-        self,
-        collapse_layer: Arc<
+    fn unfold_recursive_async<Seed: Send + Sync + 'static>(
+        seed: Seed,
+        expand_layer: Arc<
             dyn Fn(
-
-                <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-            Out,
-        >
-                ) -> BoxFuture<'static, Out>
-                + Send
+                    Seed,
+                ) -> BoxFuture<
+                    'static,
+                    <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>,
+                > + Send
                 + Sync
                 + 'static,
         >,
-    ) -> BoxFuture<'static, Out>
+    ) -> BoxFuture<'static, Self>
     where
-        <Self as RecursiveAsync>::JoinFutureToken: Functor,
+        <Self as Corecursive>::FunctorToken: JoinFuture,
         Self: Send + Sync + 'static,
-        <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-            Out,
-        >: Send + Sync,
-        <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-            Self,
-        >: Send + Sync,
+        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>: Send + Sync,
+        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Self>: Send + Sync,
     {
-        expand_and_collapse_async::<Self, Out, Self::JoinFutureToken>(
-            self,
-            Arc::new(Self::into_layer),
-            collapse_layer,
+        expand_and_collapse_async::<Seed, Self, Self::FunctorToken>(
+            seed,
+            expand_layer,
+            Arc::new(|x| futures::future::ready(Self::from_layer(x)).boxed()),
         )
         .boxed()
     }
 }
+
+// impl<R: RecursiveAsync> RecursiveAsync for PartialExpansion<R> {
+//     type FunctorToken = Compose<R::FunctorToken, Option<PartiallyApplied>>;
+
+//     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
+//         let partially_expanded = (self.f)(self.wrapped.into_layer());
+//         Self::FunctorToken::fmap(partially_expanded, move |wrapped| PartialExpansion {
+//             wrapped,
+//             f: self.f.clone(),
+//         })
+//     }
+// }
+
+
+
+
+// pub trait RecursiveAsyncExt: RecursiveAsync {
+//     fn fold_recursive_async<Out: Send + Sync + 'static>(
+//         self,
+//         collapse_layer: Arc<
+//             dyn Fn(
+//                     <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Out>,
+//                 ) -> BoxFuture<'static, Out>
+//                 + Send
+//                 + Sync
+//                 + 'static,
+//         >,
+//     ) -> BoxFuture<'static, Out>
+//     where
+//         <Self as RecursiveAsync>::JoinFutureToken: Functor,
+//         Self: Send + Sync + 'static,
+//         <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Out>: Send + Sync,
+//         <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Self>: Send + Sync;
+// }
+
+// impl<X> RecursiveAsyncExt for X
+// where
+//     X: RecursiveAsync + Send + Sync,
+// {
+//     fn fold_recursive_async<Out: Send + Sync + 'static>(
+//         self,
+//         collapse_layer: Arc<
+//             dyn Fn(
+//                     <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Out>,
+//                 ) -> BoxFuture<'static, Out>
+//                 + Send
+//                 + Sync
+//                 + 'static,
+//         >,
+//     ) -> BoxFuture<'static, Out>
+//     where
+//         <Self as RecursiveAsync>::JoinFutureToken: Functor,
+//         Self: Send + Sync + 'static,
+//         <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Out>: Send + Sync,
+//         <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Self>: Send + Sync,
+//     {
+//         expand_and_collapse_async::<Self, Out, Self::JoinFutureToken>(
+//             self,
+//             Arc::new(Self::into_layer),
+//             collapse_layer,
+//         )
+//         .boxed()
+//     }
+// }
 
 // impl<R: RecursiveAsync> RecursiveAsync for PartialExpansion<R> {
 //     type FunctorToken = Compose<R::FunctorToken, Option<PartiallyApplied>>;

@@ -25,12 +25,18 @@ pub trait FunctorRef: Functor {
 }
 
 pub trait AsRefF: Functor {
-    // type RefLayer<'a, X>: Functor;
     type RefFunctor<'a>: Functor;
 
     fn as_ref<'a, A>(
         input: &'a <Self as Functor>::Layer<A>,
     ) -> <Self::RefFunctor<'a> as Functor>::Layer<&'a A>;
+}
+
+pub trait EqF: AsRefF {
+    fn pair_if_eq<'a, Next>(
+        a: &'a <Self as Functor>::Layer<Next>,
+        b: &'a <Self as Functor>::Layer<Next>,
+    ) -> Option<<Compose<<Self as AsRefF>::RefFunctor<'a>, PairFunctor> as Functor>::Layer<&'a Next>>;
 }
 
 pub trait ToOwnedF: Functor {
@@ -84,6 +90,21 @@ impl<Fst> Functor for (Fst, PartiallyApplied) {
         F: FnMut(A) -> B,
     {
         (input.0, f(input.1))
+    }
+}
+
+pub struct PairFunctor;
+
+pub type Paired<F> = Compose<PairFunctor, F>;
+
+impl Functor for PairFunctor {
+    type Layer<X> = (X, X);
+
+    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
+    where
+        F: FnMut(A) -> B,
+    {
+        (f(input.0), f(input.1))
     }
 }
 
