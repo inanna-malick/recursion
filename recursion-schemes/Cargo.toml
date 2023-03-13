@@ -1,0 +1,18 @@
+[package]
+name = "recursion-schemes"
+version = "0.1.3"
+edition = "2021"
+description = "cache-aware stack safe recursion (this is the really haskell brained one)"
+license = "MIT OR Apache-2.0"
+rust_version = "1.65" # for GATs
+
+
+[features]
+default = []
+experimental = []
+backcompat = ["recursion"]
+
+[dependencies]
+futures = "0.3"
+tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", "io-util", "sync"]}
+recursion = {path = "../recursion", version = "0.4", optional = true}
