@@ -2,8 +2,9 @@ use crate::expr::Expr;
 
 #[cfg(test)]
 use crate::expr::naive::arb_expr;
-use crate::expr::naive::{generate_layer, ExprAST};
+use crate::expr::naive::{generate_layer, generate_layer_2, ExprAST};
 use futures::future::BoxFuture;
+use genawaiter::sync::GenBoxed;
 #[cfg(test)]
 use proptest::proptest;
 use recursion::map_layer::MapLayer;
@@ -121,6 +122,7 @@ proptest! {
             expr::{BlocAllocExpr, DFSStackExpr},
         };
         use recursion_schemes::recursive::{RecursiveExt, WithContext};
+        use recursion_schemes::functor::*;
         use recursion::{Collapse, Expand};
 
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
@@ -134,6 +136,38 @@ proptest! {
 
         let eval_gat = expr.fold_recursive(eval_layer);
 
+
+        let new_functor_eval = Expr::<PartiallyApplied>::expand_and_collapse(&expr, generate_layer, eval_layer);
+
+        let new_functor_eval_lazy = expand_and_collapse_lazy::<Expr<PartiallyApplied>, _, _>(expr.clone(), |e| generate_layer_2(e), |node| {
+            use genawaiter::sync::*;
+            use genawaiter::*;
+
+            GenBoxed::<ChildToken<_>, Option<i64>, _>::new(move |co| Box::pin(async move {
+                match node {
+                    Expr::Add(a, b) => {
+                        let a = co.yield_(a).await.unwrap();
+                        let b = co.yield_(b).await.unwrap();
+                        a + b
+                    },
+                    Expr::Sub(a, b) => {
+                        let a = co.yield_(a).await.unwrap();
+                        let b = co.yield_(b).await.unwrap();
+                        a - b
+
+                    },
+                    Expr::Mul(a, b) => {
+                        let a = co.yield_(a).await.unwrap();
+                        if a == 0 { 0 } else {
+                            let b = co.yield_(b).await.unwrap();
+                            a * b
+                        }
+                    },
+                    Expr::LiteralInt(x) => x,
+                }
+            }))
+
+        });
 
         // let eval_gat_async ={
         //     use recursion_schemes::join_future::{RecursiveAsyncExt};
@@ -203,6 +237,7 @@ proptest! {
         assert_eq!(simple, eval_gat);
         // assert_eq!(simple, eval_gat_partial);
         assert_eq!(simple, eval_gat_with_ctx);
+        assert_eq!(simple, new_functor_eval);
         // assert_eq!(simple, eval_gat_async);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);

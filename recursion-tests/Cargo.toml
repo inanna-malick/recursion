@@ -10,6 +10,7 @@ recursion = {path = "../recursion", version = "0.4", features = ["experimental"]
 recursion-schemes = {path = "../recursion-schemes", version = "0.1", features = ["experimental"]}
 proptest = "1.0"
 futures = "0.3"
+genawaiter = "0.99"
 
 [dev-dependencies]
 criterion = {version = "0.3", features = ["html_reports"]}

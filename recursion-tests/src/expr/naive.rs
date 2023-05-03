@@ -58,6 +58,15 @@ pub fn generate_layer(x: &ExprAST) -> Expr<&ExprAST> {
     }
 }
 
+pub fn generate_layer_2(x: ExprAST) -> Expr<ExprAST> {
+    match x {
+        ExprAST::Add(a, b) => Expr::Add(*a, *b),
+        ExprAST::Sub(a, b) => Expr::Sub(*a, *b),
+        ExprAST::Mul(a, b) => Expr::Mul(*a, *b),
+        ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
+    }
+}
+
 impl Project for &ExprAST {
     type To = Expr<Self>;
 

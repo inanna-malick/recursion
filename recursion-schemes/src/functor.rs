@@ -1,3 +1,4 @@
+use genawaiter::{Coroutine, sync::GenBoxed};
 #[cfg(feature = "backcompat")]
 use recursion::map_layer::MapLayer;
 #[cfg(feature = "backcompat")]
@@ -92,6 +93,8 @@ impl<Fst> Functor for (Fst, PartiallyApplied) {
         (input.0, f(input.1))
     }
 }
+
+
 
 pub struct PairFunctor;
 
@@ -212,6 +215,104 @@ where
             };
         }
         vals.pop().unwrap()
+    }
+}
+
+// opaque token type
+#[derive(Debug, Clone)]
+pub struct ChildToken<Seed>(Seed);
+
+// NOTE: generator execution _requires_ some sort of resume_with call
+//       including first invocation where there is no value to resume with!
+// so we just use an Option and panic if it's none when not expected
+// struct CoroutineWrapper<Out>{
+//     wrapped: Box<dyn Coroutine<Return = Out, Yield = ChildToken, Resume = Out>>,
+//     is_first_invocation: bool,
+// }
+
+// impl<Out> CoroutineWrapper<Out> {
+//     fn new(wrapped: Box<dyn Coroutine<Return = Out, Yield = ChildToken, Resume = Out>>) -> Self {
+//         Self {
+//             wrapped, is_first_invocation = true,
+//         }
+//     }
+// }
+
+// impl Coroutine for CoroutineWrapper<>
+
+pub fn expand_and_collapse_lazy<X: Functor, Seed: Clone, Out>(
+    seed: Seed,
+    mut expand_layer: impl FnMut(Seed) -> <X as Functor>::Layer<Seed>,
+    // NOTE: 'Out' must be returned as option b/c of ignored initial value, so, idk, w/e
+    mut collapse_layer: impl FnMut(X::Layer<ChildToken<Seed>>) -> GenBoxed<ChildToken<Seed>, Option<Out>, Out>,
+) -> Out {
+    use genawaiter::Coroutine;
+
+    enum State<Seed, X: Functor, Out> {
+        Expand(Seed),
+        Generator(GenBoxed<ChildToken<Seed>, Option<Out>, Out>),
+        Collapse(X::Layer<ChildToken<Seed>>),
+    }
+
+    let mut vals: Vec<Out> = vec![];
+    let mut stack: Vec<State<Seed, X, Out>> = vec![State::Expand(seed)];
+
+    while let Some(item) = stack.pop() {
+        match item {
+            State::Expand(seed) => {
+                let node = expand_layer(seed);
+                // let mut seeds = Vec::new();
+                let node = X::fmap(node, |seed| ChildToken(seed));
+
+                stack.push(State::Collapse(node));
+                // stack.extend(seeds.into_iter().map(State::Expand));
+            }
+            State::Collapse(node) => {
+                let mut gen = collapse_layer(node);
+                match gen.resume_with(None) {
+                    genawaiter::GeneratorState::Yielded(child_token) => {
+                        stack.push(State::Generator(gen));
+                        stack.push(State::Expand(child_token.0.clone()));
+                    },
+                    genawaiter::GeneratorState::Complete(result) => {
+                        vals.push(result);
+                    },
+                }
+                // stack.push(State::Generator(gen));
+            }
+            State::Generator(mut gen) => {
+                let next = vals.pop().expect("must exist or programmer error (I think?)");
+                match gen.resume_with(Some(next)) {
+                    genawaiter::GeneratorState::Yielded(child_token) => {
+                        stack.push(State::Generator(gen));
+                        stack.push(State::Expand(child_token.0.clone()));
+                    },
+                    genawaiter::GeneratorState::Complete(result) => {
+                        vals.push(result);
+                    },
+                }
+
+            }
+        };
+    }
+    vals.pop().unwrap()
+}
+
+#[cfg(test)]
+mod test {
+    use genawaiter::{sync::gen, *};
+
+    #[test]
+    fn mytest() {
+        let mut generator = gen!({
+            let x = yield_!(10);
+            format!("x: {:?}", x)
+        });
+        assert_eq!(generator.resume_with(1), GeneratorState::Yielded(10));
+        assert_eq!(
+            generator.resume_with(2),
+            GeneratorState::Complete("x: 2".to_owned())
+        );
     }
 }
 
