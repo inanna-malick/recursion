@@ -13,6 +13,16 @@ pub trait Functor // where
         F: FnMut(A) -> B;
 }
 
+pub trait RefFunctor // where
+//     Self: Self::Layer<PartiallyApplied>,
+{
+    type Layer<'a, X> where X: 'a;
+
+    fn fmap<'a, F, A, B>(input: Self::Layer<'a, A>, f: F) -> Self::Layer<'a, B>
+    where
+        F: FnMut(A) -> B;
+}
+
 // the typeclass hierarchy here is a mess but this is ok for now
 // basic idea is that this is for working with cases where we clone the fmap'd-over structure while only borrowing the things inside it? yeah
 // sort of similar to Option::as_ref()

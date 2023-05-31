@@ -3,58 +3,110 @@ use std::sync::Arc;
 #[cfg(feature = "backcompat")]
 use recursion::Collapse;
 
-use crate::functor::{AsRefF, Compose, Functor, FunctorExt, PartiallyApplied, ToOwnedF};
+use crate::functor::{AsRefF, Compose, Functor, FunctorExt, PartiallyApplied, ToOwnedF, FunctorRef, RefFunctor};
 
 use core::fmt::Debug;
 
-trait Base
-where
-    Self::Frame<PartiallyApplied>: Functor, // PROBLEM: the functor's layer type isn't bound to the Base frame type
-{
-    type Frame<X>;
+pub trait Base {
+    // NOTE: we would like to have an assoc type Frame<X> here but there's no way of asserting
+    //       that Frame<X> and Frame<PartiallyApplied>::Layer<X> are equiv
+    type MappableFrame: Functor;
 }
 
-type BaseFunctor<B: Base> = <B as Base>::Frame<PartiallyApplied>;
+type BaseFunctorToken<B> = <B as Base>::MappableFrame;
+type BaseFunctor<B, X> = <<B as Base>::MappableFrame as Functor>::Layer<X>;
+type BaseFunctorBorrowed<'a, B, X> = <<B as Base>::MappableFrame as RefFunctor>::Layer<'a, X>;
 
 pub trait Recursive: Base
 where
-    Self::Frame<PartiallyApplied>: Functor,
     Self: Sized,
 {
-    fn into_layer(self) -> <Self as Base>::Frame<Self>;
+    fn into_layer(self) -> BaseFunctor<Self, Self>;
 }
 
-pub trait Corecursive
+pub trait Corecursive: Base
 where
     Self: Sized,
 {
-    type FunctorToken: Functor;
-
-    // type Frame<X> = <Self::FunctorToken as Functor>::Layer<Self>;
-
-    // likely invokes clone
-    fn from_layer(x: <Self::FunctorToken as Functor>::Layer<Self>) -> Self;
+    // likely invokes clone? idk actually
+    fn from_layer(x: BaseFunctor<Self, Self>) -> Self;
 }
 
-pub fn into_fix<X: Recursive>(x: X) -> Fix<BaseFunctor<X>>
-// remove after https://github.com/rust-lang/rust/issues/111158 fix
-where
-    <X as Base>::Frame<PartiallyApplied>: Functor,
-{
-    BaseFunctor::<X>::expand_and_collapse(x, X::into_layer, Fix::new)
-}
+mod test {
+    use crate::functor::RefFunctor;
 
-pub fn from_fix<X: Corecursive>(x: Fix<X::FunctorToken>) -> X {
-    Fix::<X::FunctorToken>::fold_recursive(x, X::from_layer)
-}
+    use super::*;
+    enum E {
+        A(Box<E>, Box<E>),
+        X(String),
+    }
 
-/// heap allocated fix point of some Functor
-// #[derive(Debug)]
-pub struct Fix<F: Functor>(pub Box<F::Layer<Fix<F>>>);
+    // owned stack frame for E
+    enum EF<X> {
+        A(X, X),
+        X(String),
+    }
 
-impl<F: Functor> Fix<F> {
-    pub fn as_ref(&self) -> &F::Layer<Self> {
-        self.0.as_ref()
+    impl Functor for EF<PartiallyApplied> {
+        type Layer<X> = EF<X>;
+
+        fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
+        where
+            F: FnMut(A) -> B,
+        {
+            match input {
+                EF::A(a, b) => EF::A(f(a), f(b)),
+                EF::X(n) => EF::X(n),
+            }
+        }
+    }
+
+    impl Base for E {
+        type MappableFrame = EF<PartiallyApplied>;
+    }
+
+    impl Recursive for E {
+        fn into_layer(self) -> BaseFunctor<Self, Self> {
+            match self {
+                E::A(a, b) => EF::A(*a, *b),
+                E::X(n) => EF::X(n),
+            }
+        }
+    }
+
+
+    // borrowed stack frame for E
+    enum EFB<'a, X> {
+        A(X, X),
+        X(&'a str),
+    }
+
+
+    impl<'a> Functor for EFB<'a, PartiallyApplied> {
+        type Layer<X> = EFB<'a, X>;
+
+        fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
+        where
+            F: FnMut(A) -> B,
+        {
+            match input {
+                EFB::A(a, b) => EFB::A(f(a), f(b)),
+                EFB::X(n) => EFB::X(n),
+            }
+        }
+    }
+
+    impl<'a> Base for &'a E {
+        type MappableFrame = EFB<'a, PartiallyApplied>;
+    }
+
+    impl<'a> Recursive for &'a E {
+        fn into_layer(self) -> BaseFunctor<Self, Self> {
+            match self {
+                E::A(a, b) => EFB::A(a.as_ref(), b.as_ref()),
+                E::X(n) => EFB::X(n),
+            }
+        }
     }
 }
 
@@ -173,28 +225,49 @@ impl<F: Functor> Fix<F> {
 //     }
 // }
 
-// impl<F: Functor> Fix<F> {
-//     pub fn new(x: F::Layer<Self>) -> Self {
-//         Self(Box::new(x))
-//     }
+// I love Fix but it scares the normies, leave it out (or in a submodule) for now
+
+pub fn into_fix<X: Recursive>(x: X) -> Fix<BaseFunctorToken<X>> {
+    BaseFunctorToken::<X>::expand_and_collapse(x, X::into_layer, Fix::new)
+}
+
+// pub fn from_fix<X: Corecursive>(x: Fix<X::FunctorToken>) -> X {
+//     Fix::<X::FunctorToken>::fold_recursive(x, X::from_layer)
 // }
+
+/// heap allocated fix point of some Functor
+#[derive(Debug)]
+pub struct Fix<F: Functor>(pub Box<F::Layer<Fix<F>>>);
+
+impl<F: Functor> Fix<F> {
+    pub fn as_ref(&self) -> &F::Layer<Self> {
+        self.0.as_ref()
+    }
+}
+
+impl<F: Functor> Fix<F> {
+    pub fn new(x: F::Layer<Self>) -> Self {
+        Self(Box::new(x))
+    }
+}
+
+impl<F: Functor> Base for Fix<F> {
+    type MappableFrame = F;
+}
 
 // // recursing over a fix point structure is free
-// impl<F: Functor> Recursive for Fix<F> {
-//     type FunctorToken = F;
+impl<F: Functor> Recursive for Fix<F> {
+    fn into_layer(self) -> BaseFunctor<Self, Self> {
+        *self.0
+    }
+}
 
-//     fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
-//         *self.0
-//     }
-// }
-
-// impl<F: Functor> Corecursive for Fix<F> {
-//     type FunctorToken = F;
-
-//     fn from_layer(x: <Self::FunctorToken as Functor>::Layer<Self>) -> Self {
-//         Fix::new(x)
-//     }
-// }
+// same for corecursion
+impl<F: Functor> Corecursive for Fix<F> {
+    fn from_layer(x: BaseFunctor<Self, Self>) -> Self {
+        Fix::new(x)
+    }
+}
 
 // // note could mb have another name for fold_recursive for borrowed data? would make API cleaner mb
 // impl<'a, F: Functor + AsRefF> Recursive for &'a Fix<F> {
@@ -241,57 +314,38 @@ impl<F: Functor> Fix<F> {
 //         })
 //     }
 // }
-// pub trait CorecursiveExt: Corecursive {
-//     fn unfold_recursive<In>(
-//         input: In,
-//         expand_layer: impl FnMut(In) -> <<Self as Corecursive>::FunctorToken as Functor>::Layer<In>,
-//     ) -> Self;
-// }
 
-// impl<X> CorecursiveExt for X
-// where
-//     X: Corecursive,
-// {
-//     fn unfold_recursive<In>(
-//         input: In,
-//         expand_layer: impl FnMut(In) -> <<Self as Corecursive>::FunctorToken as Functor>::Layer<In>,
-//     ) -> Self {
-//         <X as Corecursive>::FunctorToken::expand_and_collapse(input, expand_layer, Self::from_layer)
-//     }
-// }
+pub trait CorecursiveExt: Corecursive {
+    fn unfold_recursive<In>(
+        input: In,
+        expand_layer: impl FnMut(In) -> BaseFunctor<Self, In>,
+    ) -> Self;
+}
 
-// pub trait RecursiveExt: Recursive {
-//     fn fold_recursive<Out>(
-//         self,
-//         collapse_layer: impl FnMut(<<Self as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
-//     ) -> Out;
+impl<X> CorecursiveExt for X
+where
+    X: Corecursive,
+{
+    fn unfold_recursive<In>(
+        input: In,
+        expand_layer: impl FnMut(In) -> BaseFunctor<Self, In>,
+    ) -> Self {
+        BaseFunctorToken::<Self>::expand_and_collapse(input, expand_layer, Self::from_layer)
+    }
+}
 
-//     fn expand_and_collapse<Seed, Out>(
-//         seed: Seed,
-//         expand_layer: impl FnMut(Seed) -> <<Self as Recursive>::FunctorToken as Functor>::Layer<Seed>,
-//         collapse_layer: impl FnMut(<<Self as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
-//     ) -> Out;
-// }
+pub trait RecursiveExt: Recursive {
+    fn fold_recursive<Out>(self, collapse_layer: impl FnMut(BaseFunctor<Self, Out>) -> Out) -> Out;
+}
 
-// impl<X> RecursiveExt for X
-// where
-//     X: Recursive,
-// {
-//     fn fold_recursive<Out>(
-//         self,
-//         collapse_layer: impl FnMut(<<Self as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
-//     ) -> Out {
-//         Self::expand_and_collapse(self, Self::into_layer, collapse_layer)
-//     }
-
-//     fn expand_and_collapse<Seed, Out>(
-//         seed: Seed,
-//         expand_layer: impl FnMut(Seed) -> <<X as Recursive>::FunctorToken as Functor>::Layer<Seed>,
-//         collapse_layer: impl FnMut(<<X as Recursive>::FunctorToken as Functor>::Layer<Out>) -> Out,
-//     ) -> Out {
-//         <X as Recursive>::FunctorToken::expand_and_collapse(seed, expand_layer, collapse_layer)
-//     }
-// }
+impl<X> RecursiveExt for X
+where
+    X: Recursive,
+{
+    fn fold_recursive<Out>(self, collapse_layer: impl FnMut(BaseFunctor<Self, Out>) -> Out) -> Out {
+        BaseFunctorToken::<Self>::expand_and_collapse(self, Self::into_layer, collapse_layer)
+    }
+}
 
 // #[cfg(feature = "backcompat")]
 // struct CollapseViaRecursive<X>(X);

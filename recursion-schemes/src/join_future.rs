@@ -15,16 +15,10 @@ pub trait JoinFuture: Functor {
 pub fn expand_and_collapse_async<Seed, Out, F: JoinFuture>(
     seed: Seed,
     expand_layer: Arc<
-        dyn Fn(Seed) -> BoxFuture<'static, <F as Functor>::Layer<Seed>>
-            + Send
-            + Sync
-            + 'static,
+        dyn Fn(Seed) -> BoxFuture<'static, <F as Functor>::Layer<Seed>> + Send + Sync + 'static,
     >,
     collapse_layer: Arc<
-        dyn Fn(<F as Functor>::Layer<Out>) -> BoxFuture<'static, Out>
-            + Send
-            + Sync
-            + 'static,
+        dyn Fn(<F as Functor>::Layer<Out>) -> BoxFuture<'static, Out> + Send + Sync + 'static,
     >,
 ) -> BoxFuture<'static, Out>
 where
@@ -53,16 +47,10 @@ where
 fn expand_and_collapse_async_worker<Seed, Out, F: JoinFuture>(
     seed: Seed,
     expand_layer: Arc<
-        dyn Fn(Seed) -> BoxFuture<'static, <F as Functor>::Layer<Seed>>
-            + Send
-            + Sync
-            + 'static,
+        dyn Fn(Seed) -> BoxFuture<'static, <F as Functor>::Layer<Seed>> + Send + Sync + 'static,
     >,
     collapse_layer: Arc<
-        dyn Fn(<F as Functor>::Layer<Out>) -> BoxFuture<'static, Out>
-            + Send
-            + Sync
-            + 'static,
+        dyn Fn(<F as Functor>::Layer<Out>) -> BoxFuture<'static, Out> + Send + Sync + 'static,
     >,
     resp_channel: oneshot::Sender<Out>,
 ) -> BoxFuture<'static, ()>
@@ -121,7 +109,6 @@ where
 //     ) -> BoxFuture<'static, <<Self as RecursiveAsync>::JoinFutureToken as Functor>::Layer<Self>>;
 // }
 
-
 // pub trait Corecursive: Corecursive
 // where
 //     Self: Sized,
@@ -132,8 +119,6 @@ where
 //         layer: <<Self as Corecursive>::JoinFutureToken as Functor>::Layer<Self>,
 //     ) -> BoxFuture<'static, Self>;
 // }
-
-
 
 pub trait CorecursiveAsyncExt: Corecursive {
     fn unfold_recursive_async<Seed: Send + Sync + 'static>(
@@ -199,9 +184,6 @@ where
 //         })
 //     }
 // }
-
-
-
 
 // pub trait RecursiveAsyncExt: RecursiveAsync {
 //     fn fold_recursive_async<Out: Send + Sync + 'static>(
