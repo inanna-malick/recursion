@@ -21,9 +21,7 @@ impl Functor for Expr<PartiallyApplied> {
     type Layer<X> = Expr<X>;
 
     #[inline(always)]
-    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
+    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
     {
         match input {
             Expr::Add(a, b) => Expr::Add(f(a), f(b)),

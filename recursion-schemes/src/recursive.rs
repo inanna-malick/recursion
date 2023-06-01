@@ -2,7 +2,7 @@
 use recursion::Collapse;
 
 use crate::functor::{
-    AsRefF, Compose, Functor, FunctorExt, FunctorRef, PartiallyApplied, RefFunctor, ToOwnedF,
+    AsRefF, Compose, Functor, FunctorExt, PartiallyApplied, ToOwnedF,
 };
 
 use core::fmt::Debug;
@@ -42,9 +42,7 @@ mod test {
     impl Functor for EF<PartiallyApplied> {
         type Layer<X> = EF<X>;
 
-        fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-        where
-            F: FnMut(A) -> B,
+    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
         {
             match input {
                 EF::A(a, b) => EF::A(f(a), f(b)),
@@ -73,9 +71,7 @@ mod test {
     impl<'a> Functor for EFB<'a, PartiallyApplied> {
         type Layer<X> = EFB<'a, X>;
 
-        fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-        where
-            F: FnMut(A) -> B,
+    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
         {
             match input {
                 EFB::A(a, b) => EFB::A(f(a), f(b)),
@@ -97,28 +93,6 @@ mod test {
 }
 
 
-// // impl<F: Functor + TraverseResult> Debug for Fix<F> where
-// //   F::Layer<String>: Debug,
-// // {
-// //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-// //         F::expand_and_collapse(self, |layer| layer.0, |layer| |fmt| {
-// //             // TODO: instead of building a nested closure thing, could we thread the formatter through as we do the expand step?
-// //             let layer = F::fmap(layer, |x| x(fmt));
-// //             F::flatten(layer).map( |layer| {
-// //                 format!("{:?}")
-// //             })
-// //         })
-// //         f.debug_tuple("Fix").field(&self.0).finish()
-// //     }
-// // }
-
-// // impl<F: Functor> Deref for Fix<F> {
-// //     type Target = &F::Layer<&Self>;
-
-// //     fn deref(&self) -> &Self::Target {
-// //         F.
-// //     }
-// // }
 
 // // note to future me:
 // // ok so - the AsRefF is just about being able to grab a _borrowed_ functor
@@ -139,31 +113,15 @@ where
     }
 }
 
-// // TODO: mb this just doesn't exist? this is janky af
-// impl<F: for<'a> AsRefF<RefFunctor<'a> = G>, G: Functor> Debug for Fix<F>
-// where
-//     <G as Functor>::Layer<String>: std::fmt::Display,
-// {
-//     // TODO: thread actual fmt'r through instead of just repeatedly constructing strings, but eh - is fine for now
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         let s = G::expand_and_collapse(
-//             self,
-//             |x: &Self| -> <G as Functor>::Layer<&Self> { F::as_ref(x.as_ref()) },
-//             |layer: <G as Functor>::Layer<String>| -> String { format!("{}", layer) },
-//         );
-//         f.write_str(&s)
-//     }
-// }
-
 // I love Fix but it scares the normies, leave it out (or in a submodule) for now
 
 pub fn into_fix<X: Recursive>(x: X) -> Fix<X::MappableFrame> {
     X::MappableFrame::expand_and_collapse(x, X::into_layer, Fix::new)
 }
 
-// pub fn from_fix<X: Corecursive>(x: Fix<X::FunctorToken>) -> X {
-//     Fix::<X::FunctorToken>::fold_recursive(x, X::from_layer)
-// }
+pub fn from_fix<X: Corecursive>(x: Fix<X::MappableFrame>) -> X {
+    Fix::<X::MappableFrame>::fold_recursive(x, X::from_layer)
+}
 
 /// heap allocated fix point of some Functor
 #[derive(Debug)]

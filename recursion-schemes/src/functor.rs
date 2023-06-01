@@ -3,37 +3,20 @@ use recursion::map_layer::MapLayer;
 #[cfg(feature = "backcompat")]
 use std::marker::PhantomData;
 
-pub trait Functor // where
-//     Self: Self::Layer<PartiallyApplied>,
+pub trait Functor
 {
     type Layer<X>;
 
-    fn fmap<F, A, B>(input: Self::Layer<A>, f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B;
+    fn fmap<A, B>(input: Self::Layer<A>, f: impl FnMut(A) -> B) -> Self::Layer<B>;
 }
 
-pub trait RefFunctor // where
-//     Self: Self::Layer<PartiallyApplied>,
+pub trait RefFunctor
 {
     type Layer<'a, X>
     where
         X: 'a;
 
-    fn fmap<'a, F, A, B>(input: Self::Layer<'a, A>, f: F) -> Self::Layer<'a, B>
-    where
-        F: FnMut(A) -> B;
-}
-
-// the typeclass hierarchy here is a mess but this is ok for now
-// basic idea is that this is for working with cases where we clone the fmap'd-over structure while only borrowing the things inside it? yeah
-// sort of similar to Option::as_ref()
-pub trait FunctorRef: Functor {
-    // fn fmap_ref<F, A, B>(input: &<Self as Functor>::Layer<A>, f: F) -> <Self as Functor>::Layer<B>
-    // where
-    //     F: FnMut(&A) -> B;
-
-    fn as_ref<A>(input: &<Self as Functor>::Layer<A>) -> <Self as Functor>::Layer<&A>;
+    fn fmap<'a, A, B>(input: Self::Layer<'a, A>, f: impl FnMut(A) -> B) -> Self::Layer<'a, B>;
 }
 
 pub trait AsRefF: Functor {
@@ -42,13 +25,6 @@ pub trait AsRefF: Functor {
     fn as_ref<'a, A>(
         input: &'a <Self as Functor>::Layer<A>,
     ) -> <Self::RefFunctor<'a> as Functor>::Layer<&'a A>;
-}
-
-pub trait EqF: AsRefF {
-    fn pair_if_eq<'a, Next>(
-        a: &'a <Self as Functor>::Layer<Next>,
-        b: &'a <Self as Functor>::Layer<Next>,
-    ) -> Option<<Compose<<Self as AsRefF>::RefFunctor<'a>, PairFunctor> as Functor>::Layer<&'a Next>>;
 }
 
 pub trait ToOwnedF: Functor {
@@ -69,9 +45,7 @@ pub struct Compose<F1, F2>(std::marker::PhantomData<F1>, std::marker::PhantomDat
 impl<F1: Functor, F2: Functor> Functor for Compose<F1, F2> {
     type Layer<X> = F1::Layer<F2::Layer<X>>;
 
-    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
+    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
     {
         #[allow(clippy::redundant_closure)] // this lint is wrong here
         F1::fmap(input, move |x| F2::fmap(x, |x| f(x)))
@@ -85,9 +59,7 @@ pub enum PartiallyApplied {}
 impl Functor for Option<PartiallyApplied> {
     type Layer<X> = Option<X>;
 
-    fn fmap<F, A, B>(input: Self::Layer<A>, f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
+    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
     {
         input.map(f)
     }
@@ -97,9 +69,7 @@ impl Functor for Option<PartiallyApplied> {
 impl<Fst> Functor for (Fst, PartiallyApplied) {
     type Layer<X> = (Fst, X);
 
-    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
+    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
     {
         (input.0, f(input.1))
     }
@@ -112,75 +82,13 @@ pub type Paired<F> = Compose<PairFunctor, F>;
 impl Functor for PairFunctor {
     type Layer<X> = (X, X);
 
-    fn fmap<F, A, B>(input: Self::Layer<A>, mut f: F) -> Self::Layer<B>
-    where
-        F: FnMut(A) -> B,
+    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
     {
         (f(input.0), f(input.1))
     }
 }
 
-// pub trait FunctorRefExt2: AsRefF {
-//     fn expand_and_collapse_ref<'a, Seed, Out>(
-//         seed: Seed,
-//         expand_layer: impl FnMut(&'a Seed) -> &'a <Self as AsRefF>::RefLayer<Seed>,
-//         collapse_layer: impl FnMut(<Self as Functor>::Layer<Out>) -> Out,
-//     ) -> Out
-//     where
-//         <Self as Functor>::Layer<Seed>: 'a,
-//         Seed: 'a,
-//         Out: 'a;
-// }
 
-pub trait FunctorRefExt: FunctorRef {
-    fn expand_and_collapse_ref<'a, Seed, Out>(
-        seed: &'a Seed,
-        expand_layer: impl FnMut(&'a Seed) -> &'a <Self as Functor>::Layer<Seed>,
-        collapse_layer: impl FnMut(<Self as Functor>::Layer<Out>) -> Out,
-    ) -> Out
-    where
-        <Self as Functor>::Layer<Seed>: 'a;
-}
-
-impl<X> FunctorRefExt for X
-where
-    X: FunctorRef,
-{
-    fn expand_and_collapse_ref<'a, Seed, Out>(
-        seed: &'a Seed,
-        mut expand_layer: impl FnMut(&'a Seed) -> &'a <X as Functor>::Layer<Seed>,
-        mut collapse_layer: impl FnMut(<X as Functor>::Layer<Out>) -> Out,
-    ) -> Out
-    where
-        <X as Functor>::Layer<Seed>: 'a,
-    {
-        enum State<Seed, CollapsableInternal> {
-            Expand(Seed),
-            Collapse(CollapsableInternal),
-        }
-
-        let mut vals: Vec<Out> = vec![];
-        let mut stack: Vec<State<_, _>> = vec![State::Expand(seed)];
-
-        while let Some(item) = stack.pop() {
-            match item {
-                State::Expand(seed) => {
-                    let node = expand_layer(seed);
-                    let mut seeds: Vec<&Seed> = Vec::new();
-                    let node = Self::fmap(Self::as_ref(node), |seed| seeds.push(seed));
-
-                    stack.push(State::Collapse(node));
-                    stack.extend(seeds.into_iter().map(State::Expand));
-                }
-                State::Collapse(node) => {
-                    let node = Self::fmap(node, |_: ()| vals.pop().unwrap());
-                    vals.push(collapse_layer(node))
-                }
-            };
-        }
-        vals.pop().unwrap()
-    }
-}
 
 pub trait FunctorExt: Functor {
     fn expand_and_collapse<Seed, Out>(
