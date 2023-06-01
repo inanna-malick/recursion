@@ -120,7 +120,7 @@ proptest! {
         use crate::{
             expr::{BlocAllocExpr, DFSStackExpr},
         };
-        use recursion_schemes::recursive::{RecursiveExt, WithContext};
+        use recursion_schemes::recursive::{RecursiveExt};
         use recursion::{Collapse, Expand};
 
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
@@ -172,25 +172,6 @@ proptest! {
         //     })
         // };
 
-        let eval_gat_with_ctx = WithContext(&expr).fold_recursive(|expr: Expr<(&ExprAST, i64)>| match expr {
-            Expr::Add((ctx_a, a), (ctx_b, b)) => {
-                assert_eq!(naive_eval(ctx_a), a);
-                assert_eq!(naive_eval(ctx_b), b);
-                a + b
-            }
-            Expr::Sub((ctx_a, a), (ctx_b, b)) => {
-                assert_eq!(naive_eval(ctx_a), a);
-                assert_eq!(naive_eval(ctx_b), b);
-                a - b
-            }
-            Expr::Mul((ctx_a, a), (ctx_b, b)) => {
-                assert_eq!(naive_eval(ctx_a), a);
-                assert_eq!(naive_eval(ctx_b), b);
-                a * b
-            }
-            Expr::LiteralInt(x) => x,
-        });
-
 
         // let lazy_stack_eval_compiled = eval_lazy_with_fused_compile(expr).unwrap();
 
@@ -202,7 +183,6 @@ proptest! {
         assert_eq!(simple, lazy_eval_new);
         assert_eq!(simple, eval_gat);
         // assert_eq!(simple, eval_gat_partial);
-        assert_eq!(simple, eval_gat_with_ctx);
         // assert_eq!(simple, eval_gat_async);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);

@@ -6,9 +6,7 @@ use recursion::{
     map_layer::MapLayer,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
-use recursion_schemes::{
-    functor::{Functor, PartiallyApplied},
-};
+use recursion_schemes::functor::{Functor, PartiallyApplied};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]

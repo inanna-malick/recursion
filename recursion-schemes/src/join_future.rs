@@ -128,17 +128,17 @@ pub trait CorecursiveAsyncExt: Corecursive {
                     Seed,
                 ) -> BoxFuture<
                     'static,
-                    <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>,
+                    <<Self as Corecursive>::MappableFrame as Functor>::Layer<Seed>,
                 > + Send
                 + Sync
                 + 'static,
         >,
     ) -> BoxFuture<'static, Self>
     where
-        <Self as Corecursive>::FunctorToken: JoinFuture,
+        <Self as Corecursive>::MappableFrame: JoinFuture,
         Self: Send + Sync + 'static,
-        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>: Send + Sync,
-        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Self>: Send + Sync;
+        <<Self as Corecursive>::MappableFrame as Functor>::Layer<Seed>: Send + Sync,
+        <<Self as Corecursive>::MappableFrame as Functor>::Layer<Self>: Send + Sync;
 }
 
 impl<X> CorecursiveAsyncExt for X
@@ -152,19 +152,19 @@ where
                     Seed,
                 ) -> BoxFuture<
                     'static,
-                    <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>,
+                    <<Self as Corecursive>::MappableFrame as Functor>::Layer<Seed>,
                 > + Send
                 + Sync
                 + 'static,
         >,
     ) -> BoxFuture<'static, Self>
     where
-        <Self as Corecursive>::FunctorToken: JoinFuture,
+        <Self as Corecursive>::MappableFrame: JoinFuture,
         Self: Send + Sync + 'static,
-        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Seed>: Send + Sync,
-        <<Self as Corecursive>::FunctorToken as Functor>::Layer<Self>: Send + Sync,
+        <<Self as Corecursive>::MappableFrame as Functor>::Layer<Seed>: Send + Sync,
+        <<Self as Corecursive>::MappableFrame as Functor>::Layer<Self>: Send + Sync,
     {
-        expand_and_collapse_async::<Seed, Self, Self::FunctorToken>(
+        expand_and_collapse_async::<Seed, Self, Self::MappableFrame>(
             seed,
             expand_layer,
             Arc::new(|x| futures::future::ready(Self::from_layer(x)).boxed()),

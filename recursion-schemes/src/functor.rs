@@ -16,7 +16,9 @@ pub trait Functor // where
 pub trait RefFunctor // where
 //     Self: Self::Layer<PartiallyApplied>,
 {
-    type Layer<'a, X> where X: 'a;
+    type Layer<'a, X>
+    where
+        X: 'a;
 
     fn fmap<'a, F, A, B>(input: Self::Layer<'a, A>, f: F) -> Self::Layer<'a, B>
     where

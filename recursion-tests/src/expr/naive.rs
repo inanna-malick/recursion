@@ -14,9 +14,9 @@ pub enum ExprAST {
 }
 
 impl Recursive for &ExprAST {
-    type FunctorToken = Expr<PartiallyApplied>;
+    type MappableFrame = Expr<PartiallyApplied>;
 
-    fn into_layer(self) -> <Self::FunctorToken as Functor>::Layer<Self> {
+    fn into_layer(self) -> <Self::MappableFrame as Functor>::Layer<Self> {
         match self {
             ExprAST::Add(a, b) => Expr::Add(a, b),
             ExprAST::Sub(a, b) => Expr::Sub(a, b),
