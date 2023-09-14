@@ -1,7 +1,6 @@
 use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
-use recursion_schemes::functor::Functor;
 use recursion_schemes::recursive::Recursive;
 
 /// simple naive representation of a recursive expression AST.
@@ -14,9 +13,20 @@ pub enum ExprAST {
 }
 
 impl Recursive for &ExprAST {
-    type MappableFrame = Expr<PartiallyApplied>;
+    type Frame<X> = Expr<X>;
 
-    fn into_layer(self) -> <Self::MappableFrame as Functor>::Layer<Self> {
+    #[inline(always)]
+    fn map_frame<A, B>(input: Self::Frame<A>, mut f: impl FnMut(A) -> B) -> Self::Frame<B>
+    {
+        match input {
+            Expr::Add(a, b) => Expr::Add(f(a), f(b)),
+            Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
+            Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
+            Expr::LiteralInt(x) => Expr::LiteralInt(x),
+        }
+    }
+
+    fn into_frame(self) -> Self::Frame<Self> {
         match self {
             ExprAST::Add(a, b) => Expr::Add(a, b),
             ExprAST::Sub(a, b) => Expr::Sub(a, b),
@@ -25,29 +35,6 @@ impl Recursive for &ExprAST {
         }
     }
 }
-
-// impl RecursiveAsync for Box<ExprAST> {
-//     type JoinFutureToken = Expr<PartiallyApplied>;
-
-//     fn into_layer(
-//         self,
-//     ) -> BoxFuture<
-//         'static,
-//         <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-//             Self,
-//         >,
-//     > {
-//         async {
-//             match *self {
-//                 ExprAST::Add(a, b) => Expr::Add(a, b),
-//                 ExprAST::Sub(a, b) => Expr::Sub(a, b),
-//                 ExprAST::Mul(a, b) => Expr::Mul(a, b),
-//                 ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
-//             }
-//         }
-//         .boxed()
-//     }
-// }
 
 pub fn generate_layer(x: &ExprAST) -> Expr<&ExprAST> {
     match x {
