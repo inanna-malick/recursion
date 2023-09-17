@@ -1,7 +1,7 @@
 use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
-use recursion_schemes::recursive::{HasRecursiveFrame, collapse::IntoRecursiveFrame};
+use recursion_schemes::recursive::{collapse::IntoRecursiveFrame, HasRecursiveFrame};
 
 /// simple naive representation of a recursive expression AST.
 #[derive(Debug, Clone)]

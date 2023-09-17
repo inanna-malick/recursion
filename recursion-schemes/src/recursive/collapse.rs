@@ -4,7 +4,7 @@ use super::HasRecursiveFrame;
 
 /// The ability to collapse a value into some output type, frame by frame
 pub trait CollapseRecursive: HasRecursiveFrame {
-    fn collapse_recursive<Out>(
+    fn collapse_frames<Out>(
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
     ) -> Out;
@@ -24,7 +24,7 @@ where
     X: HasRecursiveFrame,
     X: IntoRecursiveFrame<FrameToken = <X as HasRecursiveFrame>::FrameToken>,
 {
-    fn collapse_recursive<Out>(
+    fn collapse_frames<Out>(
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
     ) -> Out {

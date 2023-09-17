@@ -12,7 +12,7 @@ where
 }
 
 pub trait Expand: HasRecursiveFrame {
-    fn expand_recursive<In>(
+    fn expand_frames<In>(
         input: In,
         expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
     ) -> Self;
@@ -23,7 +23,7 @@ where
     X: HasRecursiveFrame,
     X: FromRecursiveFrame<FrameToken = <X as HasRecursiveFrame>::FrameToken>,
 {
-    fn expand_recursive<In>(
+    fn expand_frames<In>(
         input: In,
         expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
     ) -> Self {

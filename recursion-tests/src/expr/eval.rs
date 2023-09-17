@@ -132,7 +132,7 @@ proptest! {
         let lazy_eval_new = expr.collapse_layers(eval_layer);
         // let lazy_eval_et = eval_lazy_et(&expr);
 
-        let eval_gat = expr.collapse_recursive(eval_layer);
+        let eval_gat = expr.collapse_frames(eval_layer);
 
 
         // let eval_gat_async ={

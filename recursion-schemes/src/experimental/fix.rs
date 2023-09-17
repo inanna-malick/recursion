@@ -1,5 +1,6 @@
 use crate::{
-    frame::MappableFrame, recursive::{HasRecursiveFrame, collapse::IntoRecursiveFrame, expand::FromRecursiveFrame},
+    frame::MappableFrame,
+    recursive::{collapse::IntoRecursiveFrame, expand::FromRecursiveFrame, HasRecursiveFrame},
 };
 
 /// heap allocated fix point of some Functor
