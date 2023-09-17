@@ -1,4 +1,4 @@
-use crate::frame::{MappableFrame, MappableFrameExt};
+use crate::frame::{MappableFrame, expand_and_collapse};
 
 use super::HasRecursiveFrame;
 
@@ -28,6 +28,6 @@ where
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
     ) -> Out {
-        Self::FrameToken::expand_and_collapse(self, X::into_frame, collapse_frame)
+        expand_and_collapse::<Self::FrameToken, Self, Out>(self, X::into_frame, collapse_frame)
     }
 }
