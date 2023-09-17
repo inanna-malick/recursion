@@ -6,7 +6,7 @@ use recursion::{
     map_layer::MapLayer,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
-use recursion_schemes::functor::{Functor, PartiallyApplied};
+use recursion_schemes::frame::MappableFrame;
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
@@ -17,12 +17,13 @@ pub enum Expr<A> {
     LiteralInt(i64),
 }
 
-impl Functor for Expr<PartiallyApplied> {
-    type Layer<X> = Expr<X>;
+pub enum ExprFrameToken {}
+
+impl MappableFrame for ExprFrameToken {
+    type Frame<X> = Expr<X>;
 
     #[inline(always)]
-    fn fmap<A, B>(input: Self::Layer<A>, mut f: impl FnMut(A) -> B) -> Self::Layer<B>
-    {
+    fn map_frame<A, B>(input: Self::Frame<A>, mut f: impl FnMut(A) -> B) -> Self::Frame<B> {
         match input {
             Expr::Add(a, b) => Expr::Add(f(a), f(b)),
             Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),

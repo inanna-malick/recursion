@@ -1,8 +1,7 @@
 use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
-use recursion_schemes::functor::Functor;
-use recursion_schemes::recursive::Recursive;
+use recursion_schemes::recursive::{HasRecursiveFrame, collapse::IntoRecursiveFrame};
 
 /// simple naive representation of a recursive expression AST.
 #[derive(Debug, Clone)]
@@ -13,10 +12,14 @@ pub enum ExprAST {
     LiteralInt(i64),
 }
 
-impl Recursive for &ExprAST {
-    type MappableFrame = Expr<PartiallyApplied>;
+impl HasRecursiveFrame for &ExprAST {
+    type FrameToken = ExprFrameToken;
+}
 
-    fn into_layer(self) -> <Self::MappableFrame as Functor>::Layer<Self> {
+impl<'a> IntoRecursiveFrame for &'a ExprAST {
+    type FrameToken = ExprFrameToken;
+
+    fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         match self {
             ExprAST::Add(a, b) => Expr::Add(a, b),
             ExprAST::Sub(a, b) => Expr::Sub(a, b),
@@ -25,7 +28,6 @@ impl Recursive for &ExprAST {
         }
     }
 }
-
 // impl RecursiveAsync for Box<ExprAST> {
 //     type JoinFutureToken = Expr<PartiallyApplied>;
 

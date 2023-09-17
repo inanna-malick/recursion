@@ -120,8 +120,8 @@ proptest! {
         use crate::{
             expr::{BlocAllocExpr, DFSStackExpr},
         };
-        use recursion_schemes::recursive::{RecursiveExt};
         use recursion::{Collapse, Expand};
+        use recursion_schemes::recursive::collapse::CollapseRecursive;
 
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let simple = naive_eval(&expr);
@@ -132,7 +132,7 @@ proptest! {
         let lazy_eval_new = expr.collapse_layers(eval_layer);
         // let lazy_eval_et = eval_lazy_et(&expr);
 
-        let eval_gat = expr.fold_recursive(eval_layer);
+        let eval_gat = expr.collapse_recursive(eval_layer);
 
 
         // let eval_gat_async ={
