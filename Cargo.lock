@@ -711,7 +711,7 @@ version = "0.3.5"
 dependencies = [
  "futures",
  "json",
- "recursion",
+ "recursion-schemes",
  "serde",
  "serde_json",
 ]

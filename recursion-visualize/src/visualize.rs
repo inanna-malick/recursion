@@ -1,55 +1,45 @@
-use recursion::map_layer::MapLayer;
-use recursion::map_layer::Project;
-use recursion::Collapse;
 use std::fmt::Display;
+use std::path::{PathBuf};
 
-pub struct Visualized<X> {
-    x: X,
-    path: String,
-    sorted: bool,
-}
+use recursion_schemes::frame::MappableFrame;
+use recursion_schemes::recursive::collapse::Collapsable;
+use recursion_schemes::recursive::expand::Expandable;
 
-impl<X> Visualized<X> {
-    pub fn new(x: X, path: String, sorted: bool) -> Self {
-        Visualized { x, path, sorted }
+/// The ability to collapse a value into some output type, frame by frame
+pub trait CollapsableV: Collapsable
+where
+    Self: Sized + Display,
+    <Self::FrameToken as MappableFrame>::Frame<()>: Display,
+{
+
+    /// defined on trait for convenience and to allow for optimized impls
+    fn collapse_frames_v<Out>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
+    ) -> (Out, Viz)
+    where
+        Out: Display,
+    {
+        expand_and_collapse_v::<Self::FrameToken, Self, Out>(self, Self::into_frame, collapse_frame)
     }
 }
 
-impl<
-        // Layer, a type parameter of kind * -> * that cannot be represented in rust
-        Seed: Project<To = GenerateExpr> + Display,
-        Out: Display,
-        GenerateExpr: MapLayer<(), Unwrapped = Seed, To = U>, // Layer<Seed>
-        ConsumeExpr,                                          // Layer<Out>
-        U: MapLayer<Out, To = ConsumeExpr, Unwrapped = ()> + Display,
-    > Collapse<Out, ConsumeExpr> for Visualized<Seed>
+
+
+pub trait ExpandableV: Expandable
+where
+    Self: Sized + Display,
+    <Self::FrameToken as MappableFrame>::Frame<()>: Display,
 {
-    fn collapse_layers<F: FnMut(ConsumeExpr) -> Out>(self, collapse_layer: F) -> Out {
-        let (out, v) = expand_and_collapse_v(self.x, Project::project, collapse_layer);
-
-        let to_write = if self.sorted {
-            let mut sorted_actions = v.actions.clone();
-
-            sorted_actions.sort_by_key(|x| match x {
-                VizAction::ExpandSeed { .. } => 0,
-                VizAction::CollapseNode { .. } => 1,
-            });
-
-            Viz {
-                actions: sorted_actions,
-                ..v
-            }
-        } else {
-            v
-        };
-
-        let to_write = serialize_html(to_write).unwrap();
-
-        println!("write to: {}", self.path);
-
-        std::fs::write(self.path, to_write).unwrap();
-
-        out
+    /// defined on trait for convenience and to allow for optimized impls
+    fn expand_frames_v<In>(
+        input: In,
+        expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
+    ) -> (Self, Viz)
+    where
+        In: Display,
+    {
+        expand_and_collapse_v::<Self::FrameToken, In, Self>(input, expand_frame, Self::from_frame)
     }
 }
 
@@ -75,6 +65,16 @@ pub struct Viz {
     seed_txt: String,
     root_id: VizNodeId,
     actions: Vec<VizAction>,
+}
+
+impl Viz {
+    pub fn write(self, path: String) {
+        let to_write = serialize_html(self).unwrap();
+
+        println!("write to: {:?}", path);
+
+        std::fs::write(path, to_write).unwrap();
+    }
 }
 
 // this is hilariously jamky and I can do better, but this is an experimental feature so I will not prioritize doing so.
@@ -158,14 +158,15 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
 
 // use std::fmt::Debug;
 // TODO: split out root seed case to separate field on return obj, not needed as part of enum!
-pub fn expand_and_collapse_v<Seed, Out, Expandable, Collapsable>(
+pub fn expand_and_collapse_v<F, Seed, Out>(
     seed: Seed,
-    mut coalg: impl FnMut(Seed) -> Expandable,
-    mut alg: impl FnMut(Collapsable) -> Out,
+    mut coalg: impl FnMut(Seed) -> F::Frame<Seed>,
+    mut alg: impl FnMut(F::Frame<Out>) -> Out,
 ) -> (Out, Viz)
 where
-    Expandable: MapLayer<(), Unwrapped = Seed>,
-    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable> + Display,
+    F: MappableFrame,
+    // F::Frame<Seed>: Display,
+    F::Frame<()>: Display,
     Seed: Display,
     Out: Display,
 {
@@ -188,7 +189,7 @@ where
 
                 let node = coalg(seed);
                 let mut topush = Vec::new();
-                let node = node.map_layer(|seed| {
+                let node = F::map_frame(node, |seed| {
                     let k = keygen;
                     keygen += 1;
                     seeds_v.push((k, format!("{}", seed)));
@@ -206,7 +207,7 @@ where
                 todo.extend(topush.into_iter());
             }
             State::PostVisit((viz_node_id, node)) => {
-                let node = node.map_layer(|_: ()| vals.pop().unwrap());
+                let node = F::map_frame(node, |_: ()| vals.pop().unwrap());
 
                 let out = alg(node);
 
