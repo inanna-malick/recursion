@@ -1,6 +1,6 @@
 use crate::{
     frame::MappableFrame,
-    recursive::{collapse::IntoRecursiveFrame, expand::FromRecursiveFrame, HasRecursiveFrame},
+    recursive::{collapse::Collapsable, expand::Expandable, HasRecursiveFrame},
 };
 
 /// heap allocated fix point of some Functor
@@ -11,17 +11,14 @@ impl<F: MappableFrame> HasRecursiveFrame for Fix<F> {
     type FrameToken = F;
 }
 
-impl<F: MappableFrame> IntoRecursiveFrame for Fix<F> {
-    type FrameToken = F;
+impl<F: MappableFrame> Collapsable for Fix<F> {
 
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         *self.0
     }
 }
 
-impl<F: MappableFrame> FromRecursiveFrame for Fix<F> {
-    type FrameToken = F;
-
+impl<F: MappableFrame> Expandable for Fix<F> {
     fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self {
         Fix::new(val)
     }

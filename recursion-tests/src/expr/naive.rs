@@ -1,7 +1,7 @@
 use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
-use recursion_schemes::recursive::{collapse::IntoRecursiveFrame, HasRecursiveFrame};
+use recursion_schemes::recursive::{collapse::Collapsable, HasRecursiveFrame};
 
 /// simple naive representation of a recursive expression AST.
 #[derive(Debug, Clone)]
@@ -16,9 +16,7 @@ impl HasRecursiveFrame for &ExprAST {
     type FrameToken = ExprFrameToken;
 }
 
-impl<'a> IntoRecursiveFrame for &'a ExprAST {
-    type FrameToken = ExprFrameToken;
-
+impl<'a> Collapsable for &'a ExprAST {
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         match self {
             ExprAST::Add(a, b) => Expr::Add(a, b),
@@ -28,28 +26,6 @@ impl<'a> IntoRecursiveFrame for &'a ExprAST {
         }
     }
 }
-// impl RecursiveAsync for Box<ExprAST> {
-//     type JoinFutureToken = Expr<PartiallyApplied>;
-
-//     fn into_layer(
-//         self,
-//     ) -> BoxFuture<
-//         'static,
-//         <<<Self as RecursiveAsync>::JoinFutureToken as JoinFuture>::FunctorToken as Functor>::Layer<
-//             Self,
-//         >,
-//     > {
-//         async {
-//             match *self {
-//                 ExprAST::Add(a, b) => Expr::Add(a, b),
-//                 ExprAST::Sub(a, b) => Expr::Sub(a, b),
-//                 ExprAST::Mul(a, b) => Expr::Mul(a, b),
-//                 ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
-//             }
-//         }
-//         .boxed()
-//     }
-// }
 
 pub fn generate_layer(x: &ExprAST) -> Expr<&ExprAST> {
     match x {

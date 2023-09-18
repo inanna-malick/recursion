@@ -7,8 +7,6 @@ pub trait MappableFrame {
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 
-
-
 pub fn expand_and_collapse<F: MappableFrame, Seed, Out>(
     seed: Seed,
     mut expand_frame: impl FnMut(Seed) -> F::Frame<Seed>,

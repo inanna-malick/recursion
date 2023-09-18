@@ -121,7 +121,7 @@ proptest! {
             expr::{BlocAllocExpr, DFSStackExpr},
         };
         use recursion::{Collapse, Expand};
-        use recursion_schemes::recursive::collapse::CollapseRecursive;
+        use recursion_schemes::recursive::collapse::Collapsable;
 
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let simple = naive_eval(&expr);
