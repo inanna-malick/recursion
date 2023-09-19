@@ -60,6 +60,7 @@ pub enum VizAction {
     },
     // info text display!
     InfoCard {
+        info_header: String,
         info_txt: String
     }
 }
@@ -89,20 +90,17 @@ pub struct Viz {
 
 impl Viz {
 
-    pub fn label(mut self, info_txt: String) -> Self {
-        let mut actions = vec![VizAction::InfoCard { info_txt }];
+    pub fn label(mut self, info_header: String, info_txt: String) -> Self {
+        let mut actions = vec![VizAction::InfoCard { info_header, info_txt }];
         actions.extend(self.actions.into_iter());
         self.actions = actions;
 
         self
     }
 
-    pub fn fuse(self, next: Self, info_txt: String) -> Self {
-        // let viz_id_max = self.actions.iter().max_by_key(|v| v.target_id()).map(|x| x.target_id()).unwrap_or(1);
-
+    pub fn fuse(self, next: Self, info_header: String, info_txt: String) -> Self {
         let mut actions = self.actions;
-        // actions.extend(next.actions.into_iter().map(|mut x| {x.increment_id(viz_id_max); x}));
-        actions.push(VizAction::InfoCard { info_txt });
+        actions.push(VizAction::InfoCard { info_txt, info_header });
         actions.extend(next.actions.into_iter());
 
         Self {
@@ -166,11 +164,15 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
                 h.insert("txt".to_string(), Value::String(txt));
                 Value::Object(h)
             }
-            VizAction::InfoCard { info_txt } => {
+            VizAction::InfoCard { info_txt, info_header } => {
                 let mut h = serde_json::Map::new();
                 h.insert(
                     "info_txt".to_string(),
                     Value::String(info_txt.to_string()),
+                );
+                h.insert(
+                    "info_header".to_string(),
+                    Value::String(info_header.to_string()),
                 );
                 h.insert("typ".to_string(), Value::String("info_card".to_string()));
                 Value::Object(h)
@@ -279,6 +281,8 @@ static TEMPLATE_BEFORE: &'static str = r###"
 .node rect {
   fill: #fff;
   stroke-width: 4px;
+  rx: 4px;
+  rY: 4px;
  }
 
  .node text {
@@ -289,12 +293,29 @@ body {
   background-color: skyblue;
 } 
 
-div {
+.infocard {
   background-color: aliceblue;
   border-style: solid;
-  font-size: 25px;
   width: 500px;
+  padding: 10px;
+  border-radius: 10px;
 } 
+
+.infocard .cardheader {
+  font-size: 25px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  border-bottom: solid;
+  border-width: 5px;
+} 
+
+.infocard .cardbody {
+  font-size: 15px;
+  padding: 10px;
+  font-family: "Lucida Console", "Courier New", monospace;
+  background-color: steelblue;
+  color: white;
+}
 
 .link {
   fill: none;
@@ -305,7 +326,10 @@ div {
 
 <body>
 
-<div id="titlecard">placeholder</div>
+<div opacity="0" id="titlecard" class="infocard">
+  <div class="cardheader">header</div>
+  <div class="cardbody">body</div>
+</div>
 
 <!-- load the d3.js library -->	
 <script src="https://d3js.org/d3.v7.js"></script>
@@ -328,9 +352,9 @@ static TEMPLATE_AFTER: &'static str = r###"
 
 
 // Set the dimensions and margins of the diagram
-var margin = {top: 20, right: 90, bottom: 30, left: 90},
-    width = 1560 - margin.left - margin.right,
-    height = 500 - margin.top - margin.bottom;
+var margin = {top: 0, right: 10, bottom: 30, left: 30},
+    width = 900 - margin.left - margin.right,
+    height = 410 - margin.top - margin.bottom;
 
 // append the svg object to the body of the page
 // appends a 'group' element to 'svg'
@@ -343,7 +367,7 @@ var svg = d3.select("body").append("svg")
           + margin.left + "," + margin.top + ")");
 
 var i = 0,
-    duration = 750,
+    duration = 250,
     root;
 
 // declares a tree layout and assigns the size
@@ -365,7 +389,17 @@ var pause = 0;
      var next = actions.shift();
      if (next) {
     if (next.typ == "info_card") {
-         d3.select("#titlecard").text(next.info_txt);
+         d3.select("#titlecard .cardheader").text(next.info_header);
+         d3.select("#titlecard .cardbody").text(next.info_txt);
+
+         d3.select("#titlecard")
+         .transition().duration(500)
+         .style("border-color", "mediumvioletred")
+         .style("color", "mediumvioletred")
+         .transition().duration(1000)
+         .style("border-color", "black")
+         .style("color", "black");
+
     } else if (next.seeds) { // in this case, is expand (todo explicit typ field for this)
 
         let target = root.find(x => x.data.node_id == next.target_id);
@@ -410,10 +444,7 @@ var pause = 0;
      } else {
          clearInterval(intervalId);
      }} else { pause -= 1;}
- }, 1000);
-
-
-
+ }, 600);
 
 function update(source) {
 
@@ -425,7 +456,7 @@ function update(source) {
       links = treeData.descendants().slice(1);
 
   // Normalize for fixed-depth.
-  nodes.forEach(function(d){ d.y = d.depth * 210});
+  nodes.forEach(function(d){ d.y = d.depth * 110});
 
   // ****************** Nodes section ***************************
 
@@ -446,10 +477,10 @@ function update(source) {
       .attr('width', 1e-6)
       .attr('height', 1e-6)
            .transition()
-           .duration(500)
+           .duration(duration)
 
            .transition()
-           .duration(500)
+           .duration(duration)
      ;
 
   // Add labels for the nodes
@@ -489,7 +520,7 @@ function update(source) {
             .attr('height', textSize("x").height + 5 )
                .attr("transform", function(d) {return "translate(0, -" + (textSize("x").height + 5) / 2 + ")"; })
             .transition()
-     .duration(500);
+     .duration(duration);
 
      // update text
      nodeUpdate.select("text")
