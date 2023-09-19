@@ -58,7 +58,27 @@ pub enum VizAction {
         target_id: VizNodeId,
         txt: String,
     },
+    // info text display!
+    InfoCard {
+        info_txt: String
+    }
 }
+
+// impl VizAction {
+//     pub fn target_id(&self) -> VizNodeId {
+//         match self {
+//             VizAction::ExpandSeed { target_id, .. } => *target_id,
+//             VizAction::CollapseNode { target_id, ..} => *target_id,
+//         }
+//     }
+
+//     pub fn increment_id(&mut self, x: u32) {
+//         match self {
+//             VizAction::ExpandSeed { target_id, .. } => *target_id += x,
+//             VizAction::CollapseNode { target_id, ..} => *target_id += x,
+//         }
+//     }
+// }
 
 #[derive(Clone)]
 pub struct Viz {
@@ -68,6 +88,30 @@ pub struct Viz {
 }
 
 impl Viz {
+
+    pub fn label(mut self, info_txt: String) -> Self {
+        let mut actions = vec![VizAction::InfoCard { info_txt }];
+        actions.extend(self.actions.into_iter());
+        self.actions = actions;
+
+        self
+    }
+
+    pub fn fuse(self, next: Self, info_txt: String) -> Self {
+        // let viz_id_max = self.actions.iter().max_by_key(|v| v.target_id()).map(|x| x.target_id()).unwrap_or(1);
+
+        let mut actions = self.actions;
+        // actions.extend(next.actions.into_iter().map(|mut x| {x.increment_id(viz_id_max); x}));
+        actions.push(VizAction::InfoCard { info_txt });
+        actions.extend(next.actions.into_iter());
+
+        Self {
+            seed_txt: self.seed_txt,
+            root_id: self.root_id,
+            actions,
+        }
+    }
+
     pub fn write(self, path: String) {
         let to_write = serialize_html(self).unwrap();
 
@@ -89,20 +133,7 @@ pub fn serialize_html(v: Viz) -> serde_json::Result<String> {
 
 pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
     use serde_json::value::Value;
-    let mut actions = v.actions;
-    // sort to mimic non-fused ana -> cata style eval
-    actions.sort_by_key(|x| match x {
-        VizAction::ExpandSeed {
-            target_id: _,
-            txt: _,
-            seeds: _,
-        } => 0,
-        VizAction::CollapseNode {
-            target_id: _,
-            txt: _,
-        } => 1,
-    });
-    let actions: Vec<Value> = actions
+    let actions: Vec<Value> = v.actions
         .into_iter()
         .map(|elem| match elem {
             VizAction::ExpandSeed {
@@ -133,6 +164,15 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
                     Value::String(target_id.to_string()),
                 );
                 h.insert("txt".to_string(), Value::String(txt));
+                Value::Object(h)
+            }
+            VizAction::InfoCard { info_txt } => {
+                let mut h = serde_json::Map::new();
+                h.insert(
+                    "info_txt".to_string(),
+                    Value::String(info_txt.to_string()),
+                );
+                h.insert("typ".to_string(), Value::String("info_card".to_string()));
                 Value::Object(h)
             }
         })
@@ -249,6 +289,12 @@ body {
   background-color: skyblue;
 } 
 
+div {
+  background-color: aliceblue;
+  border-style: solid;
+  font-size: 25px;
+  width: 500px;
+} 
 
 .link {
   fill: none;
@@ -258,6 +304,8 @@ body {
 </style>
 
 <body>
+
+<div id="titlecard">placeholder</div>
 
 <!-- load the d3.js library -->	
 <script src="https://d3js.org/d3.v7.js"></script>
@@ -316,7 +364,9 @@ var pause = 0;
     if (pause == 0) {
      var next = actions.shift();
      if (next) {
-    if (next.seeds) { // in this case, is expand (todo explicit typ field for this)
+    if (next.typ == "info_card") {
+         d3.select("#titlecard").text(next.info_txt);
+    } else if (next.seeds) { // in this case, is expand (todo explicit typ field for this)
 
         let target = root.find(x => x.data.node_id == next.target_id);
 
