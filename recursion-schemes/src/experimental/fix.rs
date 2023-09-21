@@ -12,7 +12,6 @@ impl<F: MappableFrame> HasRecursiveFrame for Fix<F> {
 }
 
 impl<F: MappableFrame> Collapsable for Fix<F> {
-
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         *self.0
     }
