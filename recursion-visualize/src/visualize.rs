@@ -1,6 +1,4 @@
 use std::fmt::Display;
-use std::path::{PathBuf};
-
 use recursion_schemes::frame::MappableFrame;
 use recursion_schemes::recursive::collapse::Collapsable;
 use recursion_schemes::recursive::expand::Expandable;
