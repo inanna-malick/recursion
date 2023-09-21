@@ -1,10 +1,11 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use pprof::criterion::{Output, PProfProfiler};
 use recursion::recursive::{Collapse, Expand};
-use recursion_schemes::recursive::RecursiveExt;
+use recursion_schemes::recursive::collapse::Collapsable;
 use recursion_tests::expr::{
     eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
     naive::ExprAST,
-    BlocAllocExpr, DFSStackExpr, Expr,
+    BlocAllocExpr, DFSStackExpr, Expr, ExprFrameToken,
 };
 
 fn bench_eval(criterion: &mut Criterion) {
@@ -74,11 +75,18 @@ fn bench_eval(criterion: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("fold stack_machine lazy with new GAT-based model", depth),
             &boxed_big_expr,
-            |b, expr| b.iter(|| expr.fold_recursive(eval_layer)),
+            |b, expr| b.iter(|| expr.collapse_frames(eval_layer)),
         );
     }
     group.finish();
 }
 
-criterion_group!(benches, bench_eval);
+criterion_group! {
+    name = benches;
+    config = Criterion::default()
+        .with_profiler(
+            PProfProfiler::new(100, Output::Flamegraph(None))
+        );
+    targets = bench_eval
+}
 criterion_main!(benches);

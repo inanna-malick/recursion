@@ -17,6 +17,7 @@ impl HasRecursiveFrame for &ExprAST {
 }
 
 impl<'a> Collapsable for &'a ExprAST {
+    #[inline(always)]
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         match self {
             ExprAST::Add(a, b) => Expr::Add(a, b),

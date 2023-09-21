@@ -12,9 +12,11 @@ proptest = "1.0"
 futures = "0.3"
 
 [dev-dependencies]
-criterion = {version = "0.3", features = ["html_reports"]}
+criterion = {version = "0.5", features = ["html_reports"]}
 tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", "io-util", "sync"]}
+pprof = {version = "0.12.1", features = ["flamegraph", "criterion"]}
 
 [[bench]]
 name = "expr"
 harness = false
+debug = true
