@@ -1,4 +1,6 @@
-use crate::frame::{collapse_compact, MappableFrame, MappableFrameRef};
+use crate::frame::{collapse_compact, MappableFrame, MappableFrameRef, expand_compact};
+
+use self::collapse::Collapsable;
 
 pub mod collapse;
 pub mod expand;
@@ -21,8 +23,39 @@ pub trait HasRecursiveFrameRef {
     type FrameToken: MappableFrameRef;
 }
 
+// TODO: move all of this under the experimental flag
 pub struct Compact<F: MappableFrame>(pub Vec<F::Frame<()>>);
-pub struct CompactRef<'a, F: MappableFrameRef>(pub &'a [F::Frame<'a, ()>]);
+
+#[repr(transparent)]
+pub struct CompactRef<F: MappableFrame>(pub [F::Frame<()>]);
+
+impl<F: MappableFrame> Compact<F> {
+    // the idea here is to have 'compact' as a transparent wrapper around collapsable structures, 
+    // such that they can be pre-compacted and we don't need to run the expand step each time
+
+    // ALSO, this makes it so we can just remove the expandable/collapsable defn's and can
+    // just have a method 'collapse_frames' on Compact
+    pub fn compact<E: Collapsable<FrameToken = F>>(e: E) -> Self {
+        expand_compact(e, E::into_frame)
+    }
+
+
+    pub fn collapse_frames<Out>(
+        self,
+        collapse_frame: impl FnMut(<F as MappableFrame>::Frame<Out>) -> Out,
+    ) -> Out {
+        crate::frame::collapse_compact::<F, Out>(self, collapse_frame)
+    }
+}
+
+impl<F: MappableFrame + MappableFrameRef> Compact<F> {
+    pub fn collapse_frames_ref<'a, 'c: 'a, Out>(
+        &'c self,
+        collapse_frame: impl FnMut(<F::RefFrameToken<'a> as MappableFrame>::Frame<Out>) -> Out,
+    ) -> Out {
+        crate::frame::collapse_compact_ref::<'a, 'c, F, Out>(self, collapse_frame)
+    }
+}
 
 impl<F: MappableFrame> HasRecursiveFrame for Compact<F> {
     type FrameToken = F;
@@ -56,21 +89,19 @@ impl<F: MappableFrame> expand::Expandable for Compact<F> {
 }
 
 // how tf does this even work lol
-impl<'a, F: MappableFrameRef + 'a> HasRecursiveFrameRef for &'a Compact<F> {
+impl<F: MappableFrameRef> HasRecursiveFrameRef for Compact<F> {
     type FrameToken = F;
 }
 
-impl<'a, F: MappableFrameRef + 'a> collapse::CollapsableRef for &'a Compact<F> {
-    fn into_frame<'a>(&'a self) -> <Self::FrameToken as MappableFrameRef>::Frame<'a, Self> {
-        todo!()
-    }
+// impl<F: MappableFrameRef> collapse::CollapsableRef for Compact<F> {
+//     fn into_frame<'a>(&'a self) -> <Self::FrameToken as MappableFrameRef>::RefFrame<'a, Self> {
+//         todo!()
+//     }
 
-
-
-    // fn collapse_frames<Out>(
-    //     self,
-    //     collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
-    // ) -> Out {
-    //     crate::frame::collapse_compact_ref::<Self::FrameToken, Out>(self, collapse_frame)
-    // }
-}
+//     // fn collapse_frames<Out>(
+//     //     self,
+//     //     collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
+//     // ) -> Out {
+//     //     crate::frame::collapse_compact_ref::<Self::FrameToken, Out>(self, collapse_frame)
+//     // }
+// }

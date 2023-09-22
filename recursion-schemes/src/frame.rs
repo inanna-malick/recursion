@@ -7,14 +7,27 @@ pub trait MappableFrame {
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 
-pub trait MappableFrameRef {
-    type Frame<'a, Next>;
 
-    fn map_frame<'a, A, B>(
-        input: &'a Self::Frame<'a, A>,
-        f: impl FnMut(A) -> B,
-    ) -> Self::Frame<'a, B>;
+// NOTE TO FUTURE ME: this is an important insight I think, for working with borrowed data
+// I still need to make sure it works in practice tho, and tbh it's worse than just defining Recursive over &'a Foo
+pub trait MappableFrameRef: MappableFrame {
+    type RefFrameToken<'a>: MappableFrame;
+
+    fn as_ref<'a, X>(
+        input: &'a Self::Frame<X>,
+    ) -> <Self::RefFrameToken<'a> as MappableFrame>::Frame<&'a X>;
 }
+
+// pub trait MappableFrameRef {
+//     type Frame<'a, Next>;
+
+//     fn map_frame<'a, A, B>(
+//         input: &'a Self::Frame<'a, A>,
+//         f: impl FnMut(A) -> B,
+//     ) -> Self::Frame<'a, B>;
+// }
+
+
 
 pub fn expand_and_collapse<F: MappableFrame, Seed, Out>(
     seed: Seed,
@@ -61,15 +74,14 @@ pub fn collapse_compact<F: MappableFrame, Out>(
     vals.pop().unwrap()
 }
 
-
-pub fn collapse_compact_ref<'a, F: MappableFrameRef, Out>(
-    c: crate::recursive::CompactRef<'a, F>,
-    mut collapse_frame: impl FnMut(F::Frame<'a, Out>) -> Out,
+pub fn collapse_compact_ref<'a, 'c: 'a, F: MappableFrameRef, Out>(
+    c: &'c crate::recursive::Compact<F>,
+    mut collapse_frame: impl FnMut(<F::RefFrameToken<'a> as MappableFrame>::Frame<Out>) -> Out,
 ) -> Out {
     let mut vals: Vec<Out> = vec![];
 
-    for item in c.0.into_iter() {
-        let node = F::map_frame(item, |_: ()| vals.pop().unwrap());
+    for item in c.0.iter() {
+        let node = <F::RefFrameToken<'a>>::map_frame(F::as_ref(item), |_: &()| vals.pop().unwrap());
         vals.push(collapse_frame(node))
     }
     vals.pop().unwrap()

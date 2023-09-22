@@ -6,7 +6,7 @@ use recursion::{
     map_layer::MapLayer,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
-use recursion_schemes::frame::MappableFrame;
+use recursion_schemes::frame::{MappableFrame, MappableFrameRef};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
@@ -29,6 +29,23 @@ impl MappableFrame for ExprFrameToken {
             Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
             Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
             Expr::LiteralInt(x) => Expr::LiteralInt(x),
+        }
+    }
+}
+
+impl MappableFrameRef for ExprFrameToken {
+    type RefFrameToken<'a> = ExprFrameToken; // token doesn't actually own any data
+
+    // NOTE: the frame fn here is only actually used with 'A' == () and 'B' == Out
+    #[inline(always)]
+    fn as_ref<'a, X>(
+        input: &'a Self::Frame<X>,
+    ) -> <Self::RefFrameToken<'a> as MappableFrame>::Frame<&'a X> {
+        match input {
+            Expr::Add(a, b) => Expr::Add(a, b),
+            Expr::Sub(a, b) => Expr::Sub(a, b),
+            Expr::Mul(a, b) => Expr::Mul(a, b),
+            Expr::LiteralInt(x) => Expr::LiteralInt(*x),
         }
     }
 }

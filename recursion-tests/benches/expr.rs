@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
 use recursion::recursive::{Collapse, Expand};
-use recursion_schemes::recursive::collapse::Collapsable;
+use recursion_schemes::recursive::{collapse::Collapsable, Compact};
 use recursion_tests::expr::{
     eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
     naive::ExprAST,
@@ -35,9 +35,11 @@ fn bench_eval(criterion: &mut Criterion) {
             _ => unreachable!(),
         });
 
+        let boxed_big_compact = Compact::compact(boxed_big_expr.clone().as_ref());
+
         // println!("heap size for depth {}: dfs {}", big_expr_dfs.len);
 
-        test_cases.push((depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr));
+        test_cases.push((depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr, boxed_big_compact));
     }
 
     let mut group = criterion.benchmark_group("evaluate expression tree");
@@ -45,7 +47,7 @@ fn bench_eval(criterion: &mut Criterion) {
     // let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
     // group.plot_config(plot_config);
 
-    for (depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr) in test_cases.into_iter() {
+    for (depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr, boxed_big_compact) in test_cases.into_iter() {
         group.bench_with_input(
             BenchmarkId::new("traditional boxed method", depth),
             &boxed_big_expr,
@@ -76,6 +78,12 @@ fn bench_eval(criterion: &mut Criterion) {
             BenchmarkId::new("fold stack_machine lazy with new GAT-based model", depth),
             &boxed_big_expr,
             |b, expr| b.iter(|| expr.collapse_frames(eval_layer)),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("fold stack_machine lazy with new GAT-based compact", depth),
+            &boxed_big_compact,
+            |b, expr| b.iter(|| expr.collapse_frames_ref(eval_layer)),
         );
     }
     group.finish();

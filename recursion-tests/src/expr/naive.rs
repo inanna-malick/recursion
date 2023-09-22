@@ -16,6 +16,7 @@ impl HasRecursiveFrame for &ExprAST {
     type FrameToken = ExprFrameToken;
 }
 
+
 impl<'a> Collapsable for &'a ExprAST {
     #[inline(always)]
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
