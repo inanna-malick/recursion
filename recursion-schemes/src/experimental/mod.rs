@@ -1,7 +1,4 @@
-use crate::{
-    frame::MappableFrame,
-    recursive::{collapse::Collapsable, HasRecursiveFrame},
-};
+use crate::{frame::MappableFrame, recursive::collapse::Collapsable};
 
 use self::frame::PartiallyApplied;
 
@@ -24,11 +21,9 @@ impl MappableFrame for Peano<PartiallyApplied> {
     }
 }
 
-impl HasRecursiveFrame for usize {
-    type FrameToken = Peano<PartiallyApplied>;
-}
-
 impl Collapsable for usize {
+    type FrameToken = Peano<PartiallyApplied>;
+
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         if self == 0 {
             Peano::Zero

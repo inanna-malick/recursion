@@ -14,16 +14,6 @@ impl<F1: MappableFrame, F2: MappableFrame> MappableFrame for Compose<F1, F2> {
 #[derive(Debug)]
 pub enum PartiallyApplied {}
 
-//nonviable - requires frame 'X' constraint for 'a
-// impl<'a, F: MappableFrame + 'a> MappableFrame for &'a F
-
-// {
-//     type Frame<X> = &'a F::Frame<X> where X: 'a;
-
-//     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B> {
-//         input.map(f)
-//     }
-// }
 
 // used to represent partial expansion
 impl MappableFrame for Option<PartiallyApplied> {

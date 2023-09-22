@@ -7,7 +7,6 @@ pub trait MappableFrame {
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 
-
 // NOTE TO FUTURE ME: this is an important insight I think, for working with borrowed data
 // I still need to make sure it works in practice tho, and tbh it's worse than just defining Recursive over &'a Foo
 pub trait MappableFrameRef: MappableFrame {
@@ -26,8 +25,6 @@ pub trait MappableFrameRef: MappableFrame {
 //         f: impl FnMut(A) -> B,
 //     ) -> Self::Frame<'a, B>;
 // }
-
-
 
 pub fn expand_and_collapse<F: MappableFrame, Seed, Out>(
     seed: Seed,

@@ -1,14 +1,9 @@
-use crate::frame::{collapse_compact, MappableFrame, MappableFrameRef, expand_compact};
+use crate::frame::{expand_compact, MappableFrame, MappableFrameRef};
 
 use self::collapse::Collapsable;
 
 pub mod collapse;
 pub mod expand;
-
-/// A type with an associated frame type via which instances can be expanded or collapsed
-pub trait HasRecursiveFrame {
-    type FrameToken: MappableFrame;
-}
 
 // impl<'a, X: MappableFrameRef> MappableFrame for &'a X {
 //     // problem! needs 'a bound so can't write this
@@ -19,10 +14,6 @@ pub trait HasRecursiveFrame {
 //     }
 // }
 
-pub trait HasRecursiveFrameRef {
-    type FrameToken: MappableFrameRef;
-}
-
 // TODO: move all of this under the experimental flag
 pub struct Compact<F: MappableFrame>(pub Vec<F::Frame<()>>);
 
@@ -30,7 +21,7 @@ pub struct Compact<F: MappableFrame>(pub Vec<F::Frame<()>>);
 pub struct CompactRef<F: MappableFrame>(pub [F::Frame<()>]);
 
 impl<F: MappableFrame> Compact<F> {
-    // the idea here is to have 'compact' as a transparent wrapper around collapsable structures, 
+    // the idea here is to have 'compact' as a transparent wrapper around collapsable structures,
     // such that they can be pre-compacted and we don't need to run the expand step each time
 
     // ALSO, this makes it so we can just remove the expandable/collapsable defn's and can
@@ -38,7 +29,6 @@ impl<F: MappableFrame> Compact<F> {
     pub fn compact<E: Collapsable<FrameToken = F>>(e: E) -> Self {
         expand_compact(e, E::into_frame)
     }
-
 
     pub fn collapse_frames<Out>(
         self,
@@ -57,14 +47,12 @@ impl<F: MappableFrame + MappableFrameRef> Compact<F> {
     }
 }
 
-impl<F: MappableFrame> HasRecursiveFrame for Compact<F> {
-    type FrameToken = F;
-}
-
 impl<F: MappableFrame> collapse::Collapsable for Compact<F> {
+    type FrameToken = F;
+
     // TODO: unify below functions? seems like a strong yes
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
-        unimplemented!("do not call")
+        unimplemented!("not used")
     }
 
     fn collapse_frames<Out>(
@@ -76,8 +64,10 @@ impl<F: MappableFrame> collapse::Collapsable for Compact<F> {
 }
 
 impl<F: MappableFrame> expand::Expandable for Compact<F> {
+    type FrameToken = F;
+
     fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self {
-        todo!()
+        unimplemented!("not used")
     }
 
     fn expand_frames<In>(
@@ -86,11 +76,6 @@ impl<F: MappableFrame> expand::Expandable for Compact<F> {
     ) -> Self {
         crate::frame::expand_compact::<Self::FrameToken, In>(input, expand_frame)
     }
-}
-
-// how tf does this even work lol
-impl<F: MappableFrameRef> HasRecursiveFrameRef for Compact<F> {
-    type FrameToken = F;
 }
 
 // impl<F: MappableFrameRef> collapse::CollapsableRef for Compact<F> {
