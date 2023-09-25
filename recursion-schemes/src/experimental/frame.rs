@@ -6,8 +6,7 @@ impl<F1: MappableFrame, F2: MappableFrame> MappableFrame for Compose<F1, F2> {
     type Frame<X> = F1::Frame<F2::Frame<X>>;
 
     fn map_frame<A, B>(input: Self::Frame<A>, mut f: impl FnMut(A) -> B) -> Self::Frame<B> {
-        #[allow(clippy::redundant_closure)] // this lint is wrong here
-        F1::map_frame(input, move |x| F2::map_frame(x, |x| f(x)))
+        F1::map_frame(input, move |x| F2::map_frame(x, &mut f))
     }
 }
 

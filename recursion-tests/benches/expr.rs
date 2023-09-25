@@ -35,7 +35,7 @@ fn bench_eval(criterion: &mut Criterion) {
             _ => unreachable!(),
         });
 
-        let boxed_big_compact = Compact::compact(boxed_big_expr.clone().as_ref());
+        let boxed_big_compact = Compact::new(boxed_big_expr.clone().as_ref());
 
         // println!("heap size for depth {}: dfs {}", big_expr_dfs.len);
 

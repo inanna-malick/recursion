@@ -12,9 +12,9 @@ pub trait MappableFrame {
 pub trait MappableFrameRef: MappableFrame {
     type RefFrameToken<'a>: MappableFrame;
 
-    fn as_ref<'a, X>(
-        input: &'a Self::Frame<X>,
-    ) -> <Self::RefFrameToken<'a> as MappableFrame>::Frame<&'a X>;
+    fn as_ref<X>(
+        input: &Self::Frame<X>,
+    ) -> <Self::RefFrameToken<'_> as MappableFrame>::Frame<&X>;
 }
 
 // pub trait MappableFrameRef {
@@ -99,7 +99,6 @@ pub fn expand_compact<F: MappableFrame, Seed>(
         let mut topush = Vec::new();
         let frame = F::map_frame(frame, |aa| {
             topush.push(aa);
-            ()
         });
         frontier.extend(topush.into_iter().rev());
 

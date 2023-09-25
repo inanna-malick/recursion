@@ -1,9 +1,10 @@
-use crate::frame::{expand_compact, MappableFrame, MappableFrameRef};
+use crate::frame::{MappableFrame, MappableFrameRef, expand_compact};
 
 use self::collapse::Collapsable;
 
 pub mod collapse;
 pub mod expand;
+
 
 // impl<'a, X: MappableFrameRef> MappableFrame for &'a X {
 //     // problem! needs 'a bound so can't write this
@@ -14,6 +15,7 @@ pub mod expand;
 //     }
 // }
 
+
 // TODO: move all of this under the experimental flag
 pub struct Compact<F: MappableFrame>(pub Vec<F::Frame<()>>);
 
@@ -21,14 +23,15 @@ pub struct Compact<F: MappableFrame>(pub Vec<F::Frame<()>>);
 pub struct CompactRef<F: MappableFrame>(pub [F::Frame<()>]);
 
 impl<F: MappableFrame> Compact<F> {
-    // the idea here is to have 'compact' as a transparent wrapper around collapsable structures,
+    // the idea here is to have 'compact' as a transparent wrapper around collapsable structures, 
     // such that they can be pre-compacted and we don't need to run the expand step each time
 
     // ALSO, this makes it so we can just remove the expandable/collapsable defn's and can
     // just have a method 'collapse_frames' on Compact
-    pub fn compact<E: Collapsable<FrameToken = F>>(e: E) -> Self {
+    pub fn new<E: Collapsable<FrameToken = F>>(e: E) -> Self {
         expand_compact(e, E::into_frame)
     }
+
 
     pub fn collapse_frames<Out>(
         self,
@@ -47,6 +50,7 @@ impl<F: MappableFrame + MappableFrameRef> Compact<F> {
     }
 }
 
+
 impl<F: MappableFrame> collapse::Collapsable for Compact<F> {
     type FrameToken = F;
 
@@ -61,12 +65,13 @@ impl<F: MappableFrame> collapse::Collapsable for Compact<F> {
     ) -> Out {
         crate::frame::collapse_compact::<Self::FrameToken, Out>(self, collapse_frame)
     }
+
 }
 
 impl<F: MappableFrame> expand::Expandable for Compact<F> {
     type FrameToken = F;
 
-    fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self {
+    fn from_frame(_: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self {
         unimplemented!("not used")
     }
 
