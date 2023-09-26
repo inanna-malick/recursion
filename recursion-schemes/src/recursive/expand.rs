@@ -1,12 +1,12 @@
 use crate::frame::{expand_and_collapse, MappableFrame};
 
-use super::HasRecursiveFrame;
-
-pub trait Expandable: HasRecursiveFrame
+pub trait Expandable
 where
     Self: Sized,
 {
-    /// can' think of what to write here
+    type FrameToken: MappableFrame;
+
+    /// can't think of what to write here
     fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self;
 
     /// defined on trait for convenience and to allow for optimized impls

@@ -2,8 +2,9 @@
 /// represents a single frame of an expression tree with literal integers, addition, and multiplication. The expression
 /// "1 + 2 * 3" could be represented using ExprFrame::Add, ExprFrame::Literal(1), etc
 pub trait MappableFrame {
-    type Frame<X>;
+    type Frame<Next>;
 
+    // NOTE: can I do anything about implicit ordering requirement here?
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 

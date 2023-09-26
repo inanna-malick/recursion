@@ -1,7 +1,7 @@
 use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
-use recursion_schemes::recursive::{collapse::Collapsable, HasRecursiveFrame};
+use recursion_schemes::recursive::collapse::Collapsable;
 
 /// simple naive representation of a recursive expression AST.
 #[derive(Debug, Clone)]
@@ -12,11 +12,9 @@ pub enum ExprAST {
     LiteralInt(i64),
 }
 
-impl HasRecursiveFrame for &ExprAST {
-    type FrameToken = ExprFrameToken;
-}
-
 impl<'a> Collapsable for &'a ExprAST {
+    type FrameToken = ExprFrameToken;
+
     #[inline(always)]
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         match self {
