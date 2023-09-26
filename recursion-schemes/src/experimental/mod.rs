@@ -2,6 +2,7 @@ use crate::{frame::MappableFrame, recursive::collapse::Collapsable};
 
 use self::frame::PartiallyApplied;
 
+pub mod compact;
 pub mod fix;
 pub mod frame;
 
@@ -32,20 +33,6 @@ impl Collapsable for usize {
         }
     }
 }
-
-// #[test]
-// fn hey_check_this_out() {
-//     let x: Vec<usize> = vec![1, 2, 3];
-
-//     let sum_1 = x.collapse_frames(|frame| match frame {
-//         ListFrame::Cons(elem, acc) => elem + acc,
-//         ListFrame::Nil => 0,
-//     });
-
-//     let sum_2 = x.iter().fold(0, |elem, acc| elem + acc);
-
-//     assert_eq!(sum_1, sum_2);
-// }
 
 #[test]
 fn peano_numbers() {

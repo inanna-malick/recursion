@@ -6,7 +6,7 @@ use recursion::{
     map_layer::MapLayer,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
-use recursion_schemes::frame::{MappableFrame, MappableFrameRef};
+use recursion_schemes::{experimental::frame::MappableFrameRef, frame::MappableFrame};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
@@ -33,6 +33,7 @@ impl MappableFrame for ExprFrameToken {
     }
 }
 
+// used for testing experimental 'Compact' repr
 impl MappableFrameRef for ExprFrameToken {
     type RefFrameToken<'a> = ExprFrameToken; // token doesn't actually own any data
 

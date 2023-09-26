@@ -12,7 +12,6 @@ pub enum ExprAST {
     LiteralInt(i64),
 }
 
-
 impl<'a> Collapsable for &'a ExprAST {
     type FrameToken = ExprFrameToken;
 

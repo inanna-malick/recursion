@@ -1,5 +1,12 @@
 use crate::frame::MappableFrame;
 
+// mostly just used for Compact (defined over frame, needs to collapse_ref via ref frame)
+pub trait MappableFrameRef: MappableFrame {
+    type RefFrameToken<'a>: MappableFrame;
+
+    fn as_ref<X>(input: &Self::Frame<X>) -> <Self::RefFrameToken<'_> as MappableFrame>::Frame<&X>;
+}
+
 pub struct Compose<F1, F2>(std::marker::PhantomData<F1>, std::marker::PhantomData<F2>);
 
 impl<F1: MappableFrame, F2: MappableFrame> MappableFrame for Compose<F1, F2> {
@@ -13,8 +20,6 @@ impl<F1: MappableFrame, F2: MappableFrame> MappableFrame for Compose<F1, F2> {
 #[derive(Debug)]
 pub enum PartiallyApplied {}
 
-
-// used to represent partial expansion
 impl MappableFrame for Option<PartiallyApplied> {
     type Frame<X> = Option<X>;
 
@@ -23,7 +28,6 @@ impl MappableFrame for Option<PartiallyApplied> {
     }
 }
 
-// used to represent partial expansion
 impl<Fst> MappableFrame for (Fst, PartiallyApplied) {
     type Frame<X> = (Fst, X);
 

@@ -3,7 +3,7 @@ use crate::{
     recursive::{collapse::Collapsable, expand::Expandable},
 };
 
-/// heap allocated fix point of some Functor
+// heap allocated fix point of some frame F
 #[derive(Debug)]
 pub struct Fix<F: MappableFrame>(pub Box<F::Frame<Fix<F>>>);
 

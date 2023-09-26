@@ -1,15 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
-use recursion::recursive::{Collapse, Expand};
-use recursion_schemes::{
-    frame::MappableFrame,
-    recursive::{collapse::Collapsable, HasRecursiveFrame},
-};
-use recursion_tests::expr::{
-    eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
-    naive::ExprAST,
-    BlocAllocExpr, DFSStackExpr, Expr,
-};
+use recursion_schemes::{frame::MappableFrame, recursive::collapse::Collapsable};
 
 enum PartiallyApplied {}
 
@@ -32,11 +23,9 @@ impl<Elem> MappableFrame for ListFrame<Elem, PartiallyApplied> {
 
 struct CollapsableSlice<'a, Elem>(&'a [Elem]);
 
-impl<'a, Elem: 'a> HasRecursiveFrame for CollapsableSlice<'a, Elem> {
-    type FrameToken = ListFrame<&'a Elem, PartiallyApplied>;
-}
-
 impl<'a, Elem: 'a> Collapsable for CollapsableSlice<'a, Elem> {
+    type FrameToken = ListFrame<&'a Elem, PartiallyApplied>;
+
     #[inline(always)]
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         match self.0.split_first() {
@@ -49,16 +38,16 @@ impl<'a, Elem: 'a> Collapsable for CollapsableSlice<'a, Elem> {
 fn bench_eval(criterion: &mut Criterion) {
     let mut bigvec = Vec::with_capacity(1024 * 1024);
     bigvec.resize(1024 * 1024, 1);
-    let mut test_cases = vec![bigvec];
+    let test_cases = vec![bigvec];
 
     let mut group = criterion.benchmark_group("sum_via_fold");
 
     for input in test_cases.into_iter() {
-        // group.bench_with_input(
-        //     BenchmarkId::new("fold iter", input.len()),
-        //     &input,
-        //     |b, input| b.iter(|| input.iter().fold(0, |x, acc| x + acc)),
-        // );
+        group.bench_with_input(
+            BenchmarkId::new("fold iter", input.len()),
+            &input,
+            |b, input| b.iter(|| input.iter().fold(0, |x, acc| x + acc)),
+        );
 
         group.bench_with_input(
             BenchmarkId::new("fold_frames", input.len()),

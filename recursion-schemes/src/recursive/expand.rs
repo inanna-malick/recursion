@@ -6,7 +6,7 @@ where
 {
     type FrameToken: MappableFrame;
 
-    /// can' think of what to write here
+    /// can't think of what to write here
     fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self;
 
     /// defined on trait for convenience and to allow for optimized impls

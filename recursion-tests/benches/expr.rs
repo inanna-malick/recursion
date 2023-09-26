@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
 use recursion::recursive::{Collapse, Expand};
-use recursion_schemes::recursive::{collapse::Collapsable, Compact};
+use recursion_schemes::{experimental::compact::Compact, recursive::collapse::Collapsable};
 use recursion_tests::expr::{
     eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
     naive::ExprAST,
@@ -39,7 +39,13 @@ fn bench_eval(criterion: &mut Criterion) {
 
         // println!("heap size for depth {}: dfs {}", big_expr_dfs.len);
 
-        test_cases.push((depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr, boxed_big_compact));
+        test_cases.push((
+            depth,
+            big_expr_bloc_alloc,
+            big_expr_dfs,
+            boxed_big_expr,
+            boxed_big_compact,
+        ));
     }
 
     let mut group = criterion.benchmark_group("evaluate expression tree");
@@ -47,7 +53,9 @@ fn bench_eval(criterion: &mut Criterion) {
     // let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
     // group.plot_config(plot_config);
 
-    for (depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr, boxed_big_compact) in test_cases.into_iter() {
+    for (depth, big_expr_bloc_alloc, big_expr_dfs, boxed_big_expr, boxed_big_compact) in
+        test_cases.into_iter()
+    {
         group.bench_with_input(
             BenchmarkId::new("traditional boxed method", depth),
             &boxed_big_expr,
