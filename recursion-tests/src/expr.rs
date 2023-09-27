@@ -2,11 +2,15 @@ pub mod eval;
 pub mod monomorphic;
 pub mod naive;
 
+use futures::FutureExt;
 use recursion::{
     map_layer::MapLayer,
     recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
 };
-use recursion_schemes::{experimental::frame::MappableFrameRef, frame::MappableFrame};
+use recursion_schemes::{
+    experimental::frame::{AsyncMappableFrame, MappableFrameRef},
+    frame::MappableFrame,
+};
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
@@ -33,6 +37,43 @@ impl MappableFrame for ExprFrameToken {
     }
 }
 
+impl<A> Expr<A> {
+    async fn map_async<'a, B, E>(
+        input: Expr<A>,
+        mut f: impl FnMut(A) -> futures::future::BoxFuture<'a, Result<B, E>>,
+    ) -> Result<Expr<B>, E> {
+        match input {
+            Expr::Add(a, b) => {
+                let (a, b) = tokio::try_join!(f(a), f(b))?;
+                Ok(Expr::Add(a, b))
+            }
+            Expr::Sub(a, b) => {
+                let (a, b) = tokio::try_join!(f(a), f(b))?;
+                Ok(Expr::Sub(a, b))
+            }
+            Expr::Mul(a, b) => {
+                let (a, b) = tokio::try_join!(f(a), f(b))?;
+                Ok(Expr::Mul(a, b))
+            }
+            Expr::LiteralInt(x) => Ok(Expr::LiteralInt(x)),
+        }
+    }
+}
+
+impl AsyncMappableFrame for ExprFrameToken {
+    fn map_frame_async<'a, A, B, E>(
+        input: Self::Frame<A>,
+        f: impl Fn(A) -> futures::future::BoxFuture<'a, Result<B, E>> + Send + Sync + 'a,
+    ) -> futures::future::BoxFuture<'a, Result<Self::Frame<B>, E>>
+    where
+        E: Send + 'a,
+        A: Send + 'a,
+        B: Send + 'a,
+    {
+        async { Expr::map_async(input, f).await }.boxed()
+    }
+}
+
 // used for testing experimental 'Compact' repr
 impl MappableFrameRef for ExprFrameToken {
     type RefFrameToken<'a> = ExprFrameToken; // token doesn't actually own any data
@@ -50,34 +91,6 @@ impl MappableFrameRef for ExprFrameToken {
         }
     }
 }
-
-// impl JoinFuture for Expr<PartiallyApplied> {
-//     type FunctorToken = Expr<PartiallyApplied>;
-
-//     fn join_layer<A: Send + 'static>(
-//         input: <<Self as JoinFuture>::FunctorToken as Functor>::Layer<BoxFuture<'static, A>>,
-//     ) -> BoxFuture<'static, <<Self as JoinFuture>::FunctorToken as Functor>::Layer<A>> {
-//         async {
-//             use futures::future::join;
-//             match input {
-//                 Expr::Add(a, b) => {
-//                     let (a, b) = join(a, b).await;
-//                     Expr::Add(a, b)
-//                 }
-//                 Expr::Sub(a, b) => {
-//                     let (a, b) = join(a, b).await;
-//                     Expr::Sub(a, b)
-//                 }
-//                 Expr::Mul(a, b) => {
-//                     let (a, b) = join(a, b).await;
-//                     Expr::Mul(a, b)
-//                 }
-//                 Expr::LiteralInt(x) => Expr::LiteralInt(x),
-//             }
-//         }
-//         .boxed()
-//     }
-// }
 
 impl<A, B> MapLayer<B> for Expr<A> {
     type To = Expr<B>;

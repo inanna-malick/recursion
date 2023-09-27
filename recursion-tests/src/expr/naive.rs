@@ -1,7 +1,9 @@
 use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
-use recursion_schemes::recursive::collapse::Collapsable;
+use recursion_schemes::{
+    experimental::recursive::collapse::CollapsableAsync, recursive::collapse::Collapsable,
+};
 
 /// simple naive representation of a recursive expression AST.
 #[derive(Debug, Clone)]
@@ -24,6 +26,24 @@ impl<'a> Collapsable for &'a ExprAST {
             ExprAST::LiteralInt(x) => Expr::LiteralInt(*x),
         }
     }
+}
+
+impl Collapsable for Box<ExprAST> {
+    type FrameToken = ExprFrameToken;
+
+    #[inline(always)]
+    fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
+        match *self {
+            ExprAST::Add(a, b) => Expr::Add(a, b),
+            ExprAST::Sub(a, b) => Expr::Sub(a, b),
+            ExprAST::Mul(a, b) => Expr::Mul(a, b),
+            ExprAST::LiteralInt(x) => Expr::LiteralInt(x),
+        }
+    }
+}
+
+impl CollapsableAsync for Box<ExprAST> {
+    type AsyncFrameToken = ExprFrameToken;
 }
 
 pub fn generate_layer(x: &ExprAST) -> Expr<&ExprAST> {

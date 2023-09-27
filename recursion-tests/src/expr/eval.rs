@@ -1,9 +1,10 @@
-use crate::expr::Expr;
+use crate::expr::{Expr, ExprFrameToken};
 
 #[cfg(test)]
 use crate::expr::naive::arb_expr;
 use crate::expr::naive::{generate_layer, ExprAST};
 use futures::future::BoxFuture;
+use futures::FutureExt;
 #[cfg(test)]
 use proptest::proptest;
 use recursion::map_layer::MapLayer;
@@ -81,14 +82,14 @@ pub fn eval_layer(node: Expr<i64>) -> i64 {
     }
 }
 
-pub fn eval_layer_async<'a>(node: Expr<i64>) -> BoxFuture<'a, i64> {
+pub fn eval_layer_async<'a>(node: Expr<i64>) -> BoxFuture<'a, Result<i64, String>> {
     use futures::FutureExt;
-    futures::future::ready(match node {
+    futures::future::ready(Ok(match node {
         Expr::Add(a, b) => a + b,
         Expr::Sub(a, b) => a - b,
         Expr::Mul(a, b) => a * b,
         Expr::LiteralInt(x) => x,
-    })
+    }))
     .boxed()
 }
 
@@ -135,18 +136,32 @@ proptest! {
         let eval_gat = expr.collapse_frames(eval_layer);
 
 
-        // let eval_gat_async ={
-        //     use recursion_schemes::join_future::{RecursiveAsyncExt};
-        //     use std::sync::Arc;
+        // simple async eval, but really - TODO: something more definitively impressive
+        let eval_gat_async ={
+            use recursion_schemes::experimental::recursive::collapse::CollapsableAsync;
 
+            let rt = tokio::runtime::Runtime::new().unwrap();
 
-        //     let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let expr = Box::new(expr.clone());
+                expr.collapse_frames_async(eval_layer_async).await
+            })
+        };
 
-        //     rt.block_on(async {
-        //         Box::new(expr.clone()).fold_recursive_async(Arc::new(eval_layer_async)).await
-        //     })
-        // };
+        let eval_gat_async_2 ={
+            use recursion_schemes::experimental::recursive::collapse::CollapsableAsync;
 
+            let rt = tokio::runtime::Runtime::new().unwrap();
+
+            rt.block_on(async {
+                use recursion_schemes::experimental::frame::expand_and_collapse_async_new;
+
+                let expr = Box::new(expr.clone());
+                expand_and_collapse_async_new::<_, _, ExprFrameToken>(expr,
+                    |seed| std::future::ready(seed.into_frame()).boxed(),
+                    |node| async move { eval_layer_async(node).await.unwrap() }.boxed()).await
+            })
+        };
 
 
 
@@ -183,7 +198,8 @@ proptest! {
         assert_eq!(simple, lazy_eval_new);
         assert_eq!(simple, eval_gat);
         // assert_eq!(simple, eval_gat_partial);
-        // assert_eq!(simple, eval_gat_async);
+        assert_eq!(Ok(simple), eval_gat_async);
+        assert_eq!(simple, eval_gat_async_2);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }
