@@ -3,11 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use crate::frame::MappableFrame;
 
 use futures::{
-    future::BoxFuture,
+    future::{BoxFuture, LocalBoxFuture},
     stream::{futures_unordered, FuturesUnordered},
     Future, FutureExt, StreamExt, TryFutureExt,
 };
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 pub mod compose;
 
@@ -58,15 +58,107 @@ pub fn try_expand_and_collapse<F: TryMappableFrame, Seed, Out, E>(
     Ok(vals.pop().unwrap())
 }
 
-type ExpandIdx = usize;
-type CollapseIdx = usize;
-// pub struct RunningComputation<F: AsyncMappableFrame, In, Out>{
-//     // starts with one element
-//     expansions: HashMap<ExpandIdx, In>, // to be expanded
-//     expansion_keygen: usize, // increment for next key
-//     collapses: HashMap<CollapseIdx, F::Frame<Out>>,
-//     collapse_keygen: usize,  // increment for next key
-// }
+pub async fn expand_and_collapse_async_new<'a, Seed, Out, E, F>(
+    seed: Seed,
+    expand_frame: impl Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>>
+        + Send
+        + Sync
+        + 'a,
+    collapse_frame: impl Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>>
+        + Send
+        + Sync
+        + 'a,
+) -> Result<Out, E>
+where
+    E: Send + Sync + 'a,
+    F: AsyncMappableFrame + 'a,
+    Seed: Send + Sync + 'a,
+    Out: Send + Sync + 'a,
+    // can be avoided via boxed_local but then the resulting future can't be boxed..
+    // PROBLEM: the following thingies leak tf out of implementation-local data (eg error b/c local future)
+    // NOTE: we can just have a distinct mappable frame type with Send bounds baked in, that'd solve this
+    <F as MappableFrame>::Frame<Out>: Send + 'a,
+    <F as MappableFrame>::Frame<oneshot::Receiver<Out>>: Send + 'a,
+{
+    // TODO: mb hashmap in which all frames are stored instead of in the state enum? might allow for avoiding send constraint on Frame<...>
+    //       b/c then nothing ever actually goes into the work pool? but it would still need to get into the hashmap somehow, so idk if that would work
+
+    let mut work_pool: FuturesUnordered<BoxFuture<'a, Result<Vec<State<F, Seed, Out>>, E>>> =
+        FuturesUnordered::new();
+
+    let (sender, receiver) = oneshot::channel();
+
+    work_pool.push(async { Ok(vec![State::Expand(sender, seed)]) }.boxed());
+
+    let expand_frame = Arc::new(expand_frame);
+    let collapse_frame = Arc::new(collapse_frame);
+
+    while let Some(items) = work_pool.next().await {
+        for item in items?.into_iter() {
+            let expand_frame = expand_frame.clone();
+            let collapse_frame = collapse_frame.clone();
+            work_pool.push(item.step(expand_frame, collapse_frame).boxed())
+        }
+    }
+
+    Ok(receiver.await.unwrap()) // will always terminate
+}
+
+pub async fn expand_and_collapse_async_new_2<'a, Seed, Out, E, F>(
+    seed: Seed,
+    expand_frame: impl Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>>
+        + Send
+        + Sync
+        + 'a,
+    collapse_frame: impl Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>>
+        + Send
+        + Sync
+        + 'a,
+) -> Result<Out, E>
+where
+    E: Send + Sync + 'a,
+    F: AsyncMappableFrame + 'a,
+    Seed: Send + Sync + 'a,
+    Out: Send + Sync + 'a,
+    <F as MappableFrame>::Frame<Seed>: Send + Sync + 'static,
+    <F as MappableFrame>::Frame<Out>: Send + Sync + 'static,
+
+    // can be avoided via boxed_local but then the resulting future can't be boxed..
+    // PROBLEM: the following thingies leak tf out of implementation-local data (eg error b/c local future)
+    // NOTE: we can just have a distinct mappable frame type with Send bounds baked in, that'd solve this
+    // <F as MappableFrame>::Frame<Out>: Send + 'a,
+    // <F as MappableFrame>::Frame<oneshot::Receiver<Out>>: Send + 'a,
+{
+    // TODO: mb hashmap in which all frames are stored instead of in the state enum? might allow for avoiding send constraint on Frame<...>
+    //       b/c then nothing ever actually goes into the work pool? but it would still need to get into the hashmap somehow, so idk if that would work
+
+    let mut work_pool: FuturesUnordered<BoxFuture<'a, Result<(), E>>> =
+        FuturesUnordered::new();
+
+    let (sender, receiver) = oneshot::channel();
+    let (work_sender, mut work_receiver) = mpsc::channel(1024); // idk what size is right here
+
+    let expand_frame = Arc::new(expand_frame);
+    let collapse_frame = Arc::new(collapse_frame);
+
+    let root_item = Step{ seed, sender, work_pool: work_sender};
+    work_pool.push(root_item.step::<'a, F, E>(expand_frame.clone(), collapse_frame.clone()).boxed());
+
+    loop {
+        tokio::select! {
+            // enqueue more work if we have it
+            Some(work) = work_receiver.recv() => work_pool.push(work.step::<F, E>(expand_frame.clone(), collapse_frame.clone()).boxed()),
+            // push existing work to completion and short circuit if err
+            Some(completion) = work_pool.next() => match completion{
+                                Ok(_) => continue,
+                                Err(e) => return Err(e),
+                            },
+            else => break, //
+        }
+    }
+
+    Ok(receiver.await.unwrap()) // will always terminate
+}
 
 enum State<F: MappableFrame, Seed, Out> {
     Expand(oneshot::Sender<Out>, Seed),
@@ -77,10 +169,16 @@ impl<F: AsyncMappableFrame, Seed: Sync + Send, Out: Sync + Send> State<F, Seed, 
     async fn step<'a, E: Send + Sync + 'a>(
         self,
         expand_frame: Arc<
-            dyn Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>> + Send + Sync + 'a,
+            dyn Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>>
+                + Send
+                + Sync
+                + 'a,
         >,
         collapse_frame: Arc<
-            dyn Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>> + Send + Sync + 'a,
+            dyn Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>>
+                + Send
+                + Sync
+                + 'a,
         >,
     ) -> Result<Vec<Self>, E> {
         match self {
@@ -119,47 +217,64 @@ impl<F: AsyncMappableFrame, Seed: Sync + Send, Out: Sync + Send> State<F, Seed, 
     }
 }
 
-
-pub async fn expand_and_collapse_async_new<'a, Seed, Out, F, E>(
+struct Step<Seed, Out> {
     seed: Seed,
-    expand_frame: impl Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>> + Send + Sync + 'a,
-    collapse_frame: impl Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>> + Send + Sync + 'a,
-) ->Result<Out, E> 
-where
-    E: Send + Sync + 'a,
-    F: AsyncMappableFrame + 'a,
-    Seed: Send + Sync + 'a,
-    Out: Send + Sync + 'a,
-    <F as MappableFrame>::Frame<Out>: Send + 'a,
-    <F as MappableFrame>::Frame<tokio::sync::oneshot::Receiver<Out>>: std::marker::Send,
-    <F as MappableFrame>::Frame<oneshot::Receiver<Out>>: Send + 'a,
+    sender: oneshot::Sender<Out>,
+    work_pool: mpsc::Sender<Self>,
+}
 
-{
-    let mut work_pool: FuturesUnordered<BoxFuture<'a, Result<Vec<State<F, Seed, Out>>, E> >> =
-        FuturesUnordered::new();
+impl<Seed: Sync + Send, Out: Sync + Send> Step<Seed, Out> {
+    async fn step<'a, F: AsyncMappableFrame, E: Send + Sync + 'a>(
+        self,
+        expand_frame: Arc<
+            dyn Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>>
+                + Send
+                + Sync
+                + 'a,
+        >,
+        collapse_frame: Arc<
+            dyn Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>>
+                + Send
+                + Sync
+                + 'a,
+        >,
+    ) -> Result<(), E> {
+        let node = expand_frame(self.seed).await?;
 
-    let (sender, receiver) = oneshot::channel();
+        let node = F::map_frame_async(node, |seed| {
+            async {
+                let (sender, receiver) = oneshot::channel();
 
-    work_pool.push(async { Ok(vec![State::Expand(sender, seed)]) }.boxed());
+                self.work_pool
+                    .send(Step {
+                        sender,
+                        seed,
+                        work_pool: self.work_pool.clone(),
+                    })
+                    .await
+                    .ok()
+                    .expect("mpsc error");
 
-    let expand_frame = Arc::new(expand_frame);
-    let collapse_frame = Arc::new(collapse_frame);
+                let recvd = receiver.await.expect("oneshot recv error");
 
-    while let Some(items) = work_pool.next().await {
-        for item in items?.into_iter() {
-            let expand_frame = expand_frame.clone();
-            let collapse_frame = collapse_frame.clone();
-            work_pool.push(
-                    item.step(expand_frame, collapse_frame).boxed(),
-            )
-        }
+                Ok(recvd)
+            }
+            .boxed()
+        })
+        .await?;
+
+        let collapsed = collapse_frame(node).await?;
+
+        self.sender
+            .send(collapsed)
+            .ok()
+            .expect("oneshot send failure");
+
+        Ok(())
     }
-
-    Ok(receiver.await.unwrap()) // must always terminate, one hopes
 }
 
 pub trait AsyncMappableFrame: MappableFrame {
-
     // NOTE: what does having 'a here mean/imply? should 'a bound be on A/B/E?
     fn map_frame_async<'a, A, B, E>(
         input: Self::Frame<A>,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::{future::BoxFuture, Future, FutureExt};
 
 use crate::{
-    experimental::frame::{expand_and_collapse_async, AsyncMappableFrame},
+    experimental::frame::*,
     frame::{expand_and_collapse, MappableFrame},
     recursive::collapse::Collapsable,
 };
@@ -32,10 +32,17 @@ where
         <Self::AsyncFrameToken as MappableFrame>::Frame<Out>: Send + Sync + 'static,
         E: Send + Sync + 'static,
     {
-        expand_and_collapse_async::<Self, Out, E, Self::AsyncFrameToken>(
+        // expand_and_collapse_async::<Self, Out, E, Self::AsyncFrameToken>(
+        //     self,
+        //     Arc::new(|seed| std::future::ready(Ok(Self::into_frame(seed))).boxed()),
+        //     Arc::new(collapse_frame),
+        // )
+        // .boxed()
+
+        expand_and_collapse_async_new_2::<Self, Out, E, Self::AsyncFrameToken>(
             self,
-            Arc::new(|seed| std::future::ready(Ok(Self::into_frame(seed))).boxed()),
-            Arc::new(collapse_frame),
+            |seed| std::future::ready(Ok(Self::into_frame(seed))).boxed(),
+            collapse_frame,
         ).boxed()
     }
 }

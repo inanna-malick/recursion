@@ -155,7 +155,7 @@ proptest! {
                 use recursion_schemes::experimental::frame::expand_and_collapse_async_new;
 
                 let expr = Box::new(expr.clone());
-                expand_and_collapse_async_new::<_, _, ExprFrameToken, String>(expr,
+                expand_and_collapse_async_new::<_, _, String, ExprFrameToken>(expr,
                     |seed| std::future::ready(Ok(seed.into_frame())).boxed(),
                     eval_layer_async
                 ).await
