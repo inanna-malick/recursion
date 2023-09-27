@@ -36,6 +36,6 @@ where
             self,
             Arc::new(|seed| std::future::ready(Ok(Self::into_frame(seed))).boxed()),
             Arc::new(collapse_frame),
-        )
+        ).boxed()
     }
 }

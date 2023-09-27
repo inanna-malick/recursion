@@ -2,11 +2,7 @@ use std::sync::Arc;
 
 use futures::{future::BoxFuture, FutureExt};
 
-use crate::{
-    experimental::frame::{expand_and_collapse_async, AsyncMappableFrame},
-    frame::MappableFrame,
-    recursive::expand::Expandable,
-};
+use crate::{frame::MappableFrame, recursive::expand::Expandable, experimental::frame::{expand_and_collapse_async, AsyncMappableFrame}};
 
 pub trait ExpandableAsync: Expandable<FrameToken = Self::AsyncFrameToken>
 where
@@ -19,8 +15,7 @@ where
         seed: In,
         expand_frame: impl Fn(
                 In,
-            )
-                -> BoxFuture<'static, Result<<Self::AsyncFrameToken as MappableFrame>::Frame<In>, E>>
+            ) -> BoxFuture<'static, Result<<Self::AsyncFrameToken as MappableFrame>::Frame<In>, E>>
             + Send
             + Sync
             + 'static,
@@ -38,4 +33,5 @@ where
             Arc::new(|frame| std::future::ready(Ok(Self::from_frame(frame))).boxed()),
         )
     }
+
 }

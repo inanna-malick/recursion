@@ -74,18 +74,18 @@ enum State<F: MappableFrame, Seed, Out> {
 }
 
 impl<F: AsyncMappableFrame, Seed: Sync + Send, Out: Sync + Send> State<F, Seed, Out> {
-    async fn step<'a>(
+    async fn step<'a, E: Send + Sync + 'a>(
         self,
         expand_frame: Arc<
-            dyn Fn(Seed) -> BoxFuture<'a, <F as MappableFrame>::Frame<Seed>> + Send + Sync + 'a,
+            dyn Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>> + Send + Sync + 'a,
         >,
         collapse_frame: Arc<
-            dyn Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Out> + Send + Sync + 'a,
+            dyn Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>> + Send + Sync + 'a,
         >,
-    ) -> Vec<Self> {
+    ) -> Result<Vec<Self>, E> {
         match self {
             State::Expand(sender, seed) => {
-                let node = expand_frame(seed).await;
+                let node = expand_frame(seed).await?;
                 let mut seeds = Vec::new();
                 let node = F::map_frame(node, |seed| {
                     let (sender, receiver) = oneshot::channel();
@@ -102,64 +102,64 @@ impl<F: AsyncMappableFrame, Seed: Sync + Send, Out: Sync + Send> State<F, Seed, 
                         .map(|(sender, node)| State::Expand(sender, node)),
                 );
 
-                ops
+                Ok(ops)
             }
             State::Collapse(sender, node) => {
                 let node = F::map_frame_async(node, |receiver| async { receiver.await }.boxed())
                     .await
                     .expect("unexpected oneshot recv error");
 
-                let collapsed = collapse_frame(node).await;
+                let collapsed = collapse_frame(node).await?;
 
                 sender.send(collapsed).ok().expect("oneshot send failure");
 
-                Vec::new()
+                Ok(Vec::new())
             }
         }
     }
 }
 
 
-pub async fn expand_and_collapse_async_new<'a, Seed, Out, F>(
+pub async fn expand_and_collapse_async_new<'a, Seed, Out, F, E>(
     seed: Seed,
-    expand_frame: impl Fn(Seed) -> BoxFuture<'a, <F as MappableFrame>::Frame<Seed>> + Send + Sync + 'a,
-    collapse_frame: impl Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Out> + Send + Sync + 'a,
-) -> Out
+    expand_frame: impl Fn(Seed) -> BoxFuture<'a, Result<<F as MappableFrame>::Frame<Seed>, E>> + Send + Sync + 'a,
+    collapse_frame: impl Fn(<F as MappableFrame>::Frame<Out>) -> BoxFuture<'a, Result<Out, E>> + Send + Sync + 'a,
+) ->Result<Out, E> 
 where
+    E: Send + Sync + 'a,
     F: AsyncMappableFrame + 'a,
     Seed: Send + Sync + 'a,
     Out: Send + Sync + 'a,
-    <F as MappableFrame>::Frame<oneshot::Receiver<Out>>: Send + 'a,
     <F as MappableFrame>::Frame<Out>: Send + 'a,
+    <F as MappableFrame>::Frame<tokio::sync::oneshot::Receiver<Out>>: std::marker::Send,
+    <F as MappableFrame>::Frame<oneshot::Receiver<Out>>: Send + 'a,
+
 {
-    let mut work_pool: FuturesUnordered<BoxFuture<'a, Vec<State<F, Seed, Out>>>> =
+    let mut work_pool: FuturesUnordered<BoxFuture<'a, Result<Vec<State<F, Seed, Out>>, E> >> =
         FuturesUnordered::new();
 
     let (sender, receiver) = oneshot::channel();
 
-    work_pool.push(async { vec![State::Expand(sender, seed)] }.boxed());
+    work_pool.push(async { Ok(vec![State::Expand(sender, seed)]) }.boxed());
 
     let expand_frame = Arc::new(expand_frame);
     let collapse_frame = Arc::new(collapse_frame);
 
     while let Some(items) = work_pool.next().await {
-        for item in items.into_iter() {
+        for item in items?.into_iter() {
             let expand_frame = expand_frame.clone();
             let collapse_frame = collapse_frame.clone();
             work_pool.push(
-                async move {
-                    item.step(expand_frame, collapse_frame)
-                        .await
-                }
-                .boxed(),
+                    item.step(expand_frame, collapse_frame).boxed(),
             )
         }
     }
 
-    receiver.await.unwrap() // must always terminate, one hopes
+    Ok(receiver.await.unwrap()) // must always terminate, one hopes
 }
 
 pub trait AsyncMappableFrame: MappableFrame {
+
     // NOTE: what does having 'a here mean/imply? should 'a bound be on A/B/E?
     fn map_frame_async<'a, A, B, E>(
         input: Self::Frame<A>,
