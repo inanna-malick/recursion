@@ -6,8 +6,8 @@
 /// For this reason, a common convention is to implement this trait using the uninhabited
 ///  `PartiallyApplied` type, eg
 /// ```rust
-/// use recursion_schemes::{MappableFrame, PartiallyApplied};
-///
+/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
+/// # #[derive(Debug, PartialEq, Eq)]
 /// enum IntTreeFrame<A> {
 ///     Leaf { value: usize },
 ///     Node { left: A, right: A },
@@ -26,6 +26,37 @@
 ///         }
 ///     }
 /// }
+/// ```
+///
+/// Generally speaking, you won't use this trait yourself. It's used by the internal plumbing of
+/// `Collapsable` and `Expandable` to implement recursive traversals
+///
+/// That said, here's an example showing what mapping over a frame looks like:
+/// ```rust
+/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
+/// # #[derive(Debug, PartialEq, Eq)]
+/// # enum IntTreeFrame<A> {
+/// #     Leaf { value: usize },
+/// #     Node { left: A, right: A },
+/// # }
+/// #
+/// # impl MappableFrame for IntTreeFrame<PartiallyApplied> {
+/// #     type Frame<X> = IntTreeFrame<X>;
+/// #
+/// #     fn map_frame<A, B>(input: Self::Frame<A>, mut f: impl FnMut(A) -> B) -> Self::Frame<B> {
+/// #         match input {
+/// #             IntTreeFrame::Leaf { value } => IntTreeFrame::Leaf { value },
+/// #             IntTreeFrame::Node { left, right } => IntTreeFrame::Node {
+/// #                 left: f(left),
+/// #                 right: f(right),
+/// #             },
+/// #         }
+/// #     }
+/// # }
+/// let frame = IntTreeFrame::Node{ left: 1, right: 2};
+/// let mapped_frame = IntTreeFrame::<PartiallyApplied>::map_frame(frame, |n| n + 10);
+///
+/// assert_eq!(mapped_frame, IntTreeFrame::Node{left: 11, right: 12});
 /// ```
 pub trait MappableFrame {
     /// the frame type that is mapped over by `map_frame`
