@@ -1,9 +1,10 @@
-/// A single 'frame' containing values that can be mapped over via 'map_frame'.
+/// A single 'frame' containing values that can be mapped over via `map_frame`.
 ///
 /// This trait is usually implemented for some marker token, because rust does not
-/// allow for implementing a trait for a partially applied type (eg 'ExprFrame').
+/// allow for implementing a trait for a partially applied type.
+///
 /// For this reason, a common convention is to implement this trait using the uninhabited
-///  'PartiallyApplied' type, eg
+///  `PartiallyApplied` type, eg
 /// ```rust
 /// use recursion_schemes::{MappableFrame, PartiallyApplied};
 ///
@@ -25,27 +26,26 @@
 ///         }
 ///     }
 /// }
-///
 /// ```
 pub trait MappableFrame {
-    /// the frame type that is mapped over by 'map_frame'
+    /// the frame type that is mapped over by `map_frame`
     type Frame<X>;
 
-    /// Apply some function 'f' to each element inside a frame
+    /// Apply some function `f` to each element inside a frame
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 
-/// 'PartiallyApplied' is an uninhabited enum - a type that cannot exist at runtime.
+/// `PartiallyApplied` is an uninhabited enum - a type that cannot exist at runtime.
 /// It is used to defined MappableFrame instances for partially-applied types.
 ///
-/// For example: the MappableFrame instance for 'MyFrame<A>' cannot be written over the
-/// partially-applied type 'MyFrame', so instead we write it over 'MyFrame<PartiallyApplied>'
+/// For example: the MappableFrame instance for `MyFrame<A>` cannot be written over the
+/// partially-applied type `MyFrame`, so instead we write it over `MyFrame<PartiallyApplied>`
 #[derive(Debug)]
 pub enum PartiallyApplied {}
 
-/// This function generates a stack machine for some frame 'F::Frame',
-/// expanding some seed value 'Seed' into frames via a function 'Seed -> Frame<Seed>'
-/// and collapsing those values via a function 'Frame<Out> -> Out'.
+/// This function generates a stack machine for some frame `F::Frame`,
+/// expanding some seed value `Seed` into frames via a function `Seed -> Frame<Seed>`
+/// and collapsing those values via a function `Frame<Out> -> Out`.
 ///
 /// This function performs a depth-first traversal, expanding and collapsing each branch in turn
 ///
