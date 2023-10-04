@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
-use futures::{future::BoxFuture, Future, FutureExt};
+use futures::{future::BoxFuture, FutureExt};
 
 use crate::{
-    experimental::frame::*,
-    frame::{expand_and_collapse, MappableFrame},
+    experimental::frame::{expand_and_collapse_async, AsyncMappableFrame, Frame},
     recursive::collapse::Collapsable,
 };
 
@@ -16,33 +13,25 @@ where
     type AsyncFrameToken: AsyncMappableFrame;
 
     /// defined on trait for convenience and to allow for optimized impls
-    fn collapse_frames_async<Out, E>(
+    fn collapse_frames_async<'a, Out, E>(
         self,
-        collapse_frame: impl Fn(
-                <Self::AsyncFrameToken as MappableFrame>::Frame<Out>,
-            ) -> BoxFuture<'static, Result<Out, E>>
+        collapse_frame: impl Fn(Frame<Self::AsyncFrameToken, Out>) -> BoxFuture<'a, Result<Out, E>>
             + Send
             + Sync
-            + 'static,
-    ) -> BoxFuture<'static, Result<Out, E>>
+            + 'a,
+    ) -> BoxFuture<'a, Result<Out, E>>
     where
-        Self: Send + Sync + 'static,
-        Out: Send + Sync + 'static,
-        <Self::AsyncFrameToken as MappableFrame>::Frame<Self>: Send + Sync + 'static,
-        <Self::AsyncFrameToken as MappableFrame>::Frame<Out>: Send + Sync + 'static,
-        E: Send + Sync + 'static,
+        Self: Send + Sync + 'a,
+        Out: Send + Sync + 'a,
+        Frame<Self::AsyncFrameToken, Self>: Send + Sync + 'a,
+        Frame<Self::AsyncFrameToken, Out>: Send + Sync + 'a,
+        E: Send + Sync + 'a,
     {
-        // expand_and_collapse_async::<Self, Out, E, Self::AsyncFrameToken>(
-        //     self,
-        //     Arc::new(|seed| std::future::ready(Ok(Self::into_frame(seed))).boxed()),
-        //     Arc::new(collapse_frame),
-        // )
-        // .boxed()
-
-        expand_and_collapse_async_new_2::<Self, Out, E, Self::AsyncFrameToken>(
+        expand_and_collapse_async::<Self, Out, E, Self::AsyncFrameToken>(
             self,
             |seed| std::future::ready(Ok(Self::into_frame(seed))).boxed(),
             collapse_frame,
-        ).boxed()
+        )
+        .boxed()
     }
 }

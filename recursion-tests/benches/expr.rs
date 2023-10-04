@@ -85,7 +85,7 @@ fn bench_eval(criterion: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("fold stack_machine lazy with new GAT-based model", depth),
             &boxed_big_expr,
-            |b, expr| b.iter(|| expr.collapse_frames(eval_layer)),
+            |b, expr| b.iter(|| expr.as_ref().collapse_frames(eval_layer)),
         );
 
         group.bench_with_input(

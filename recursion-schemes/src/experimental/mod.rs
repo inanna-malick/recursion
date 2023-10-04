@@ -3,15 +3,16 @@ pub mod fix;
 pub mod frame;
 pub mod recursive;
 
-#[derive(Debug)]
-pub enum PartiallyApplied {}
-
 use futures::{future, FutureExt, TryFutureExt};
 
 use crate::{frame::MappableFrame, recursive::collapse::Collapsable};
 
-use self::{frame::AsyncMappableFrame, recursive::collapse::CollapsableAsync};
+use self::{
+    frame::{compose::PartiallyApplied, AsyncMappableFrame},
+    recursive::collapse::CollapsableAsync,
+};
 
+// TODO: move to tests
 pub enum Peano<Next> {
     Succ(Next),
     Zero,

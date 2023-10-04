@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 3f31bb9d33c2e46622fab1d5b8aaaa24b14ea36a79be706ec667a477fb5469e5 # shrinks to expr = LiteralInt(0)
+cc 889d4782f4810aa467dc096707475c04da894b48ab3db0ba247f0860dd1334ed # shrinks to expr = LiteralInt(0)

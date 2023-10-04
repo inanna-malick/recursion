@@ -1,10 +1,9 @@
-use crate::expr::{Expr, ExprFrameToken};
+use crate::expr::Expr;
 
 #[cfg(test)]
 use crate::expr::naive::arb_expr;
 use crate::expr::naive::{generate_layer, ExprAST};
 use futures::future::BoxFuture;
-use futures::FutureExt;
 #[cfg(test)]
 use proptest::proptest;
 use recursion::map_layer::MapLayer;
@@ -148,19 +147,6 @@ proptest! {
             })
         };
 
-        let eval_gat_async_2 ={
-            let rt = tokio::runtime::Runtime::new().unwrap();
-
-            rt.block_on(async {
-                use recursion_schemes::experimental::frame::expand_and_collapse_async_new;
-
-                let expr = Box::new(expr.clone());
-                expand_and_collapse_async_new::<_, _, String, ExprFrameToken>(expr,
-                    |seed| std::future::ready(Ok(seed.into_frame())).boxed(),
-                    eval_layer_async
-                ).await
-            })
-        };
 
 
 
@@ -198,7 +184,6 @@ proptest! {
         assert_eq!(simple, eval_gat);
         // assert_eq!(simple, eval_gat_partial);
         assert_eq!(Ok(simple), eval_gat_async);
-        assert_eq!(Ok(simple), eval_gat_async_2);
         // will fail because literals > 99 are invalid in compiled ctx
         // assert_eq!(simple, lazy_stack_eval_compiled);
     }

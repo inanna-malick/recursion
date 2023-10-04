@@ -19,4 +19,3 @@ pprof = {version = "0.12.1", features = ["flamegraph", "criterion"]}
 [[bench]]
 name = "expr"
 harness = false
-debug = true
