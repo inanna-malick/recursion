@@ -2,7 +2,7 @@ use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
 use recursion_schemes::{
-    experimental::recursive::collapse::CollapsableAsync, recursive::collapse::Collapsable,
+    experimental::recursive::collapse::CollapsibleAsync, recursive::collapse::Collapsible,
 };
 
 /// simple naive representation of a recursive expression AST.
@@ -14,7 +14,7 @@ pub enum ExprAST {
     LiteralInt(i64),
 }
 
-impl<'a> Collapsable for &'a ExprAST {
+impl<'a> Collapsible for &'a ExprAST {
     type FrameToken = ExprFrameToken;
 
     #[inline(always)]
@@ -28,7 +28,7 @@ impl<'a> Collapsable for &'a ExprAST {
     }
 }
 
-impl Collapsable for Box<ExprAST> {
+impl Collapsible for Box<ExprAST> {
     type FrameToken = ExprFrameToken;
 
     #[inline(always)]
@@ -42,7 +42,7 @@ impl Collapsable for Box<ExprAST> {
     }
 }
 
-impl CollapsableAsync for Box<ExprAST> {
+impl CollapsibleAsync for Box<ExprAST> {
     type AsyncFrameToken = ExprFrameToken;
 }
 

@@ -1,62 +1,65 @@
 /// A single 'frame' containing values that can be mapped over via `map_frame`.
+/// 
+/// # Motivation
+/// 
+/// Generally speaking, you won't use this trait yourself. It's used by the internal plumbing of
+/// `Collapsible` and `Expandable` to implement recursive traversals.
 ///
+/// # Implementing this trait
+/// 
 /// This trait is usually implemented for some marker token, because rust does not
-/// allow for implementing a trait for a partially applied type.
-///
+/// allow for implementing a trait for a partially applied type. That is, we can implement
+/// a trait for `Option<usize>` but we can't implement a trait for just `Option`, because
+/// `Option` is a partially applied type.
+/// 
 /// For this reason, a common convention is to implement this trait using the uninhabited
-///  `PartiallyApplied` type, eg
+///  `PartiallyApplied` enum marker, eg
+/// 
 /// ```rust
 /// # use recursion_schemes::{MappableFrame, PartiallyApplied};
 /// # #[derive(Debug, PartialEq, Eq)]
-/// enum IntTreeFrame<A> {
-///     Leaf { value: usize },
-///     Node { left: A, right: A },
+/// enum MyOption<A> {
+///     Some(A),
+///     None,
 /// }
 ///
-/// impl MappableFrame for IntTreeFrame<PartiallyApplied> {
-///     type Frame<X> = IntTreeFrame<X>;
+/// impl MappableFrame for MyOption<PartiallyApplied> {
+///     type Frame<X> = MyOption<X>;
 ///
 ///     fn map_frame<A, B>(input: Self::Frame<A>, mut f: impl FnMut(A) -> B) -> Self::Frame<B> {
 ///         match input {
-///             IntTreeFrame::Leaf { value } => IntTreeFrame::Leaf { value },
-///             IntTreeFrame::Node { left, right } => IntTreeFrame::Node {
-///                 left: f(left),
-///                 right: f(right),
-///             },
+///             MyOption::Some(x) => MyOption::Some(f(x)),
+///             MyOption::None => MyOption::None,
 ///         }
 ///     }
 /// }
 /// ```
 ///
-/// Generally speaking, you won't use this trait yourself. It's used by the internal plumbing of
-/// `Collapsable` and `Expandable` to implement recursive traversals
+/// # Use
 ///
-/// That said, here's an example showing what mapping over a frame looks like:
+/// Here's what mapping over a `MyOption` frame looks like in action:
 /// ```rust
 /// # use recursion_schemes::{MappableFrame, PartiallyApplied};
 /// # #[derive(Debug, PartialEq, Eq)]
-/// # enum IntTreeFrame<A> {
-/// #     Leaf { value: usize },
-/// #     Node { left: A, right: A },
+/// # enum MyOption<A> {
+/// #     Some(A),
+/// #     None,
 /// # }
 /// #
-/// # impl MappableFrame for IntTreeFrame<PartiallyApplied> {
-/// #     type Frame<X> = IntTreeFrame<X>;
+/// # impl MappableFrame for MyOption<PartiallyApplied> {
+/// #     type Frame<X> = MyOption<X>;
 /// #
 /// #     fn map_frame<A, B>(input: Self::Frame<A>, mut f: impl FnMut(A) -> B) -> Self::Frame<B> {
 /// #         match input {
-/// #             IntTreeFrame::Leaf { value } => IntTreeFrame::Leaf { value },
-/// #             IntTreeFrame::Node { left, right } => IntTreeFrame::Node {
-/// #                 left: f(left),
-/// #                 right: f(right),
-/// #             },
+/// #             MyOption::Some(x) => MyOption::Some(f(x)),
+/// #             MyOption::None => MyOption::None,
 /// #         }
 /// #     }
 /// # }
-/// let frame = IntTreeFrame::Node{ left: 1, right: 2};
-/// let mapped_frame = IntTreeFrame::<PartiallyApplied>::map_frame(frame, |n| n + 10);
+/// let frame = MyOption::Some(1);
+/// let mapped_frame = MyOption::<PartiallyApplied>::map_frame(frame, |n| n + 10);
 ///
-/// assert_eq!(mapped_frame, IntTreeFrame::Node{left: 11, right: 12});
+/// assert_eq!(mapped_frame, MyOption::Some(11));
 /// ```
 pub trait MappableFrame {
     /// the frame type that is mapped over by `map_frame`
@@ -88,9 +91,9 @@ pub fn expand_and_collapse<F: MappableFrame, Seed, Out>(
     mut expand_frame: impl FnMut(Seed) -> F::Frame<Seed>,
     mut collapse_frame: impl FnMut(F::Frame<Out>) -> Out,
 ) -> Out {
-    enum State<Seed, CollapsableInternal> {
+    enum State<Seed, CollapsibleInternal> {
         Expand(usize, Seed),
-        Collapse(usize, CollapsableInternal),
+        Collapse(usize, CollapsibleInternal),
     }
 
     let mut vals: Vec<Option<Out>> = vec![None];

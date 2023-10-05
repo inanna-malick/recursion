@@ -1,10 +1,10 @@
 use std::fmt::Display;
 use recursion_schemes::frame::MappableFrame;
-use recursion_schemes::recursive::collapse::Collapsable;
+use recursion_schemes::recursive::collapse::Collapsible;
 use recursion_schemes::recursive::expand::Expandable;
 
 /// The ability to collapse a value into some output type, frame by frame
-pub trait CollapsableV: Collapsable
+pub trait CollapsibleV: Collapsible
 where
     Self: Sized + Display,
     <Self::FrameToken as MappableFrame>::Frame<()>: Display,

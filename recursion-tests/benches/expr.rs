@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
 use recursion::recursive::{Collapse, Expand};
-use recursion_schemes::{experimental::compact::Compact, recursive::collapse::Collapsable};
+use recursion_schemes::{experimental::compact::Compact, recursive::collapse::Collapsible};
 use recursion_tests::expr::{
     eval::{eval_layer, eval_lazy, eval_lazy_with_fused_compile, naive_eval},
     naive::ExprAST,

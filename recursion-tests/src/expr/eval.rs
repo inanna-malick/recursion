@@ -121,7 +121,7 @@ proptest! {
             expr::{BlocAllocExpr, DFSStackExpr},
         };
         use recursion::{Collapse, Expand};
-        use recursion_schemes::recursive::collapse::Collapsable;
+        use recursion_schemes::recursive::collapse::Collapsible;
 
         // NOTE: this helped me find one serious bug in new cata impl, where it was doing vec pop instead of vec head_pop so switched to VecDequeue. Found minimal example, Add (0, Sub(0, 1)).
         let simple = naive_eval(&expr);
@@ -137,7 +137,7 @@ proptest! {
 
         // simple async eval, but really - TODO: something more definitively impressive
         let eval_gat_async ={
-            use recursion_schemes::experimental::recursive::collapse::CollapsableAsync;
+            use recursion_schemes::experimental::recursive::collapse::CollapsibleAsync;
 
             let rt = tokio::runtime::Runtime::new().unwrap();
 

@@ -1,4 +1,4 @@
-use crate::{frame::MappableFrame, recursive::collapse::Collapsable};
+use crate::{frame::MappableFrame, recursive::collapse::Collapsible};
 
 use super::frame::MappableFrameRef;
 
@@ -8,12 +8,12 @@ pub struct Compact<F: MappableFrame>(pub Vec<F::Frame<()>>);
 pub struct CompactRef<F: MappableFrame>(pub [F::Frame<()>]);
 
 impl<F: MappableFrame> Compact<F> {
-    // the idea here is to have 'compact' as a transparent wrapper around collapsable structures,
+    // the idea here is to have 'compact' as a transparent wrapper around collapsible structures,
     // such that they can be pre-compacted and we don't need to run the expand step each time
 
-    // ALSO, this makes it so we can just remove the expandable/collapsable defn's and can
+    // ALSO, this makes it so we can just remove the expandable/collapsible defn's and can
     // just have a method 'collapse_frames' on Compact
-    pub fn new<E: Collapsable<FrameToken = F>>(e: E) -> Self {
+    pub fn new<E: Collapsible<FrameToken = F>>(e: E) -> Self {
         expand_compact(e, E::into_frame)
     }
 

@@ -5,11 +5,11 @@ pub mod recursive;
 
 use futures::{future, FutureExt, TryFutureExt};
 
-use crate::{frame::MappableFrame, recursive::collapse::Collapsable};
+use crate::{frame::MappableFrame, recursive::collapse::Collapsible};
 
 use self::{
     frame::{compose::PartiallyApplied, AsyncMappableFrame},
-    recursive::collapse::CollapsableAsync,
+    recursive::collapse::CollapsibleAsync,
 };
 
 // TODO: move to tests
@@ -46,7 +46,7 @@ impl AsyncMappableFrame for Peano<PartiallyApplied> {
     }
 }
 
-impl Collapsable for usize {
+impl Collapsible for usize {
     type FrameToken = Peano<PartiallyApplied>;
 
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
@@ -58,7 +58,7 @@ impl Collapsable for usize {
     }
 }
 
-impl CollapsableAsync for usize {
+impl CollapsibleAsync for usize {
     type AsyncFrameToken = Peano<PartiallyApplied>;
 }
 

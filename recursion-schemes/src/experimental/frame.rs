@@ -29,9 +29,9 @@ pub fn try_expand_and_collapse<F: TryMappableFrame, Seed, Out, E>(
     mut expand_frame: impl FnMut(Seed) -> Result<F::Frame<Seed>, E>,
     mut collapse_frame: impl FnMut(F::Frame<Out>) -> Result<Out, E>,
 ) -> Result<Out, E> {
-    enum State<Seed, CollapsableInternal> {
+    enum State<Seed, CollapsibleInternal> {
         Expand(Seed),
-        Collapse(CollapsableInternal),
+        Collapse(CollapsibleInternal),
     }
 
     let mut vals: Vec<Out> = vec![];

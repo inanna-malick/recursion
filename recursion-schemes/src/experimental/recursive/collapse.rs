@@ -2,11 +2,11 @@ use futures::{future::BoxFuture, FutureExt};
 
 use crate::{
     experimental::frame::{expand_and_collapse_async, AsyncMappableFrame, Frame},
-    recursive::collapse::Collapsable,
+    recursive::collapse::Collapsible,
 };
 
 /// The ability to collapse a value into some output type, frame by frame
-pub trait CollapsableAsync: Collapsable<FrameToken = Self::AsyncFrameToken>
+pub trait CollapsibleAsync: Collapsible<FrameToken = Self::AsyncFrameToken>
 where
     Self: Sized,
 {

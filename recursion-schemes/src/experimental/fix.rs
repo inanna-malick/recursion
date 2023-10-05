@@ -1,13 +1,13 @@
 use crate::{
     frame::MappableFrame,
-    recursive::{collapse::Collapsable, expand::Expandable},
+    recursive::{collapse::Collapsible, expand::Expandable},
 };
 
 // heap allocated fix point of some frame F
 #[derive(Debug)]
 pub struct Fix<F: MappableFrame>(pub Box<F::Frame<Fix<F>>>);
 
-impl<F: MappableFrame> Collapsable for Fix<F> {
+impl<F: MappableFrame> Collapsible for Fix<F> {
     type FrameToken = F;
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         *self.0

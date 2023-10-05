@@ -5,16 +5,16 @@ use crate::{
 
 /// Build a state machine by simultaneously expanding a seed into some structure and consuming that structure from the leaves down.
 /// Expandable: a single layer of expanding structure, of type Layer<Seed>
-/// Collapsable: a single layer of collapsing structure, of type Layer<Out>
+/// Collapsible: a single layer of collapsing structure, of type Layer<Out>
 /// E: a failure case that results in early termination when encountered
-pub fn expand_and_collapse_result<Seed, Out, Expandable, Collapsable, Error>(
+pub fn expand_and_collapse_result<Seed, Out, Expandable, Collapsible, Error>(
     seed: Seed,
     mut coalg: impl FnMut(Seed) -> Result<Expandable, Error>,
-    mut alg: impl FnMut(Collapsable) -> Result<Out, Error>,
+    mut alg: impl FnMut(Collapsible) -> Result<Out, Error>,
 ) -> Result<Out, Error>
 where
     Expandable: MapLayer<(), Unwrapped = Seed>,
-    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable>,
+    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsible>,
 {
     enum State<Pre, Post> {
         PreVisit(Pre),
@@ -51,19 +51,19 @@ where
 /// Seed: the initial value that structure is expanded out from
 /// Out: the value that the structure is collapsed into
 /// Expandable: a single layer of expanding structure, of type Layer<Seed>
-/// Collapsable: a single layer of collapsing structure, of type Layer<Out>
-pub fn expand_and_collapse<Seed, Out, Expandable, Collapsable>(
+/// Collapsible: a single layer of collapsing structure, of type Layer<Out>
+pub fn expand_and_collapse<Seed, Out, Expandable, Collapsible>(
     seed: Seed,
     mut expand_layer: impl FnMut(Seed) -> Expandable,
-    mut collapse_layer: impl FnMut(Collapsable) -> Out,
+    mut collapse_layer: impl FnMut(Collapsible) -> Out,
 ) -> Out
 where
     Expandable: MapLayer<(), Unwrapped = Seed>,
-    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsable>,
+    <Expandable as MapLayer<()>>::To: MapLayer<Out, Unwrapped = (), To = Collapsible>,
 {
-    enum State<Seed, CollapsableInternal> {
+    enum State<Seed, CollapsibleInternal> {
         Expand(Seed),
-        Collapse(CollapsableInternal),
+        Collapse(CollapsibleInternal),
     }
 
     let mut vals: Vec<Out> = vec![];

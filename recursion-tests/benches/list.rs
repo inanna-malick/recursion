@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
-use recursion_schemes::{frame::MappableFrame, recursive::collapse::Collapsable};
+use recursion_schemes::{frame::MappableFrame, recursive::collapse::Collapsible};
 
 enum PartiallyApplied {}
 
@@ -21,15 +21,15 @@ impl<Elem> MappableFrame for ListFrame<Elem, PartiallyApplied> {
     }
 }
 
-struct CollapsableSlice<'a, Elem>(&'a [Elem]);
+struct CollapsibleSlice<'a, Elem>(&'a [Elem]);
 
-impl<'a, Elem: 'a> Collapsable for CollapsableSlice<'a, Elem> {
+impl<'a, Elem: 'a> Collapsible for CollapsibleSlice<'a, Elem> {
     type FrameToken = ListFrame<&'a Elem, PartiallyApplied>;
 
     #[inline(always)]
     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
         match self.0.split_first() {
-            Some((first, rest)) => ListFrame::Cons(first, CollapsableSlice(rest)),
+            Some((first, rest)) => ListFrame::Cons(first, CollapsibleSlice(rest)),
             None => ListFrame::Nil,
         }
     }
@@ -54,7 +54,7 @@ fn bench_eval(criterion: &mut Criterion) {
             &input,
             |b, input| {
                 b.iter(|| {
-                    CollapsableSlice(&input[..]).collapse_frames(|frame| match frame {
+                    CollapsibleSlice(&input[..]).collapse_frames(|frame| match frame {
                         ListFrame::Cons(e, acc) => e + acc,
                         ListFrame::Nil => 0,
                     })
