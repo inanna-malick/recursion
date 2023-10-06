@@ -4,6 +4,5 @@ members = [
   "recursion",
   "recursion-visualize",
   "recursion-tests",
-  "recursion-schemes",
 ]
 

@@ -1,30 +1,23 @@
 use crate::frame::{expand_and_collapse, MappableFrame};
 
-/// The ability to recursively collapse some type into some output type, frame by frame.
+/// The ability to recursively expand a seed to construct a value of this type, frame by frame.
 ///
 /// # Example: A tree of integers
 ///
-/// Here's an example showing how to use [`Collapsible`] to collapse a binary tree of integers,
+/// Here's an example showing how to use [`Expandable`] to expand a binary tree of integers,
 /// where nodes hold two subnodes and no data and leaves hold a single `usize` value
 ///
 /// ```rust
-/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
-/// # use recursion_schemes::Collapsible;
+/// # use recursion::{MappableFrame, PartiallyApplied};
+/// #[derive(Debug, PartialEq, Eq)]
 /// enum IntTree {
 ///     Leaf { value: usize },
 ///     Node { left: Box<Self>, right: Box<Self> },
 /// }
 ///
 /// # impl IntTree {
-/// #     fn node(left: Self, right: Self) -> Self {
-/// #         Self::Node {
-/// #             left: Box::new(left),
-/// #             right: Box::new(right),
-/// #         }
-/// #     }
-/// #     fn leaf(value: usize) -> Self {
-/// #         Self::Leaf { value }
-/// #     }
+/// #   fn node(left: Self, right: Self) -> Self { Self::Node{left: Box::new(left), right: Box::new(right)}}
+/// #   fn leaf(value: usize) -> Self { Self::Leaf{value}}
 /// # }
 /// ```
 ///
@@ -34,7 +27,7 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// that represents a single layer of the `IntTree` structure, with `A` subbed in for `Box<Self>`
 ///
 /// ```rust
-/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
+/// # use recursion::{MappableFrame, PartiallyApplied};
 /// enum IntTreeFrame<A> {
 ///     Leaf { value: usize },
 ///     Node { left: A, right: A },
@@ -54,20 +47,17 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// }
 /// ```
 ///
-/// ## Implementing Collapsible
+/// ## Implementing Expandable
 ///
-/// Then we can define a collapse instance for `IntTree`
+/// Then we can define an [`Expandable`] instance for `IntTree`
 ///
 /// ```rust
-/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
-/// # use recursion_schemes::Collapsible;
+/// # use recursion::{MappableFrame, PartiallyApplied};
+/// # use recursion::Expandable;
+/// # #[derive(Debug, PartialEq, Eq)]
 /// # enum IntTree {
 /// #     Leaf { value: usize },
 /// #     Node { left: Box<Self>, right: Box<Self> },
-/// # }
-/// # impl IntTree {
-/// #   fn node(left: Self, right: Self) -> Self { Self::Node{left: Box::new(left), right: Box::new(right)}}
-/// #   fn leaf(value: usize) -> Self { Self::Leaf{value}}
 /// # }
 /// # enum IntTreeFrame<A> {
 /// #     Leaf { value: usize },
@@ -86,29 +76,27 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// #         }
 /// #     }
 /// # }
-/// impl<'a> Collapsible for &'a IntTree {
+/// impl Expandable for IntTree {
 ///     type FrameToken = IntTreeFrame<PartiallyApplied>;
 ///
-///     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
-///         match self {
-///             IntTree::Leaf { value } => IntTreeFrame::Leaf { value: *value },
-///             IntTree::Node { left, right } => IntTreeFrame::Node {
-///                 left: left.as_ref(),
-///                 right: right.as_ref(),
+///     fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self {
+///         match val {
+///             IntTreeFrame::Leaf { value } => IntTree::Leaf { value },
+///             IntTreeFrame::Node { left, right } => IntTree::Node {
+///                 left: Box::new(left),
+///                 right: Box::new(right),
 ///             },
 ///         }
 ///     }
 /// }
 /// ```
+/// ## Expanding a value into a tree
 ///
-/// ## Collapsing a tree into a value
-///
-/// Finally, we can use our [`Collapsible`] instance to collapse an example tree into a single value.
-/// In this case, we're just doing something simple - counting the number of leaves in the structure
+/// Finally, we can use our [`Expandable`] instance to generate a tree
 ///
 /// ```rust
-/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
-/// # use recursion_schemes::Collapsible;
+/// # use recursion::{MappableFrame, PartiallyApplied};
+/// # use recursion::Expandable;
 /// # #[derive(Debug, PartialEq, Eq)]
 /// # enum IntTree {
 /// #     Leaf { value: usize },
@@ -118,7 +106,6 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// #   fn node(left: Self, right: Self) -> Self { Self::Node{left: Box::new(left), right: Box::new(right)}}
 /// #   fn leaf(value: usize) -> Self { Self::Leaf{value}}
 /// # }
-///
 /// # enum IntTreeFrame<A> {
 /// #     Leaf { value: usize },
 /// #     Node { left: A, right: A },
@@ -136,51 +123,57 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// #         }
 /// #     }
 /// # }
-/// # impl<'a> Collapsible for &'a IntTree {
+/// # impl Expandable for IntTree {
 /// #     type FrameToken = IntTreeFrame<PartiallyApplied>;
 /// #
-/// #     fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self> {
-/// #         match self {
-/// #             IntTree::Leaf { value } => IntTreeFrame::Leaf { value: *value },
-/// #             IntTree::Node { left, right } => IntTreeFrame::Node {
-/// #                 left: left.as_ref(),
-/// #                 right: right.as_ref(),
+/// #     fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self {
+/// #         match val {
+/// #             IntTreeFrame::Leaf { value } => IntTree::Leaf { value },
+/// #             IntTreeFrame::Node { left, right } => IntTree::Node {
+/// #                 left: Box::new(left),
+/// #                 right: Box::new(right),
 /// #             },
 /// #         }
 /// #     }
 /// # }
-/// let tree = IntTree::node(
+/// let depth = 2;
+///
+/// let expanded_tree = IntTree::expand_frames(depth, |n| {
+///     if n <= 0 {
+///         IntTreeFrame::Leaf { value: n }
+///     } else {
+///         IntTreeFrame::Node {
+///             left: n - 1,
+///             right: n - 1,
+///         }
+///     }
+/// });
+///
+/// let expected = IntTree::node(
 ///     IntTree::node(IntTree::leaf(0), IntTree::leaf(0)),
 ///     IntTree::node(IntTree::leaf(0), IntTree::leaf(0)),
 /// );
 ///
-/// let leaf_count = tree.collapse_frames(|frame| match frame {
-///     IntTreeFrame::Leaf { value } => 1,
-///     IntTreeFrame::Node { left, right } => left + right,
-/// });
-///
-/// assert_eq!(leaf_count, 4)
+/// assert_eq!(expected, expanded_tree)
 /// ```
 
-pub trait Collapsible
+pub trait Expandable
 where
     Self: Sized,
 {
     type FrameToken: MappableFrame;
 
-    /// Given an instance of this type, generate a frame holding the data owned by it,
-    /// with any recursive instances of `Self` owned by this node as the frame elements
-    fn into_frame(self) -> <Self::FrameToken as MappableFrame>::Frame<Self>;
+    /// Given a frame holding instances of `Self`, generate an instance of `Self`
+    fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self;
 
-    /// Given an instance of this type, collapse it into a single value of type `Out` by
-    /// traversing the recursive structure of `self`, generating frames, and collapsing
-    /// those frames using some function from `Frame<Out> -> Out`
+    /// Given a value of type `In`, expand it to generate a value of type `Self` frame by frame,
+    /// using a function from `In -> Frame<In>`
     ///
-    /// This function is defined on the `Collapse` trait for convenience and to allow for optimized impls
-    fn collapse_frames<Out>(
-        self,
-        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
-    ) -> Out {
-        expand_and_collapse::<Self::FrameToken, Self, Out>(self, Self::into_frame, collapse_frame)
+    /// defined on trait for convenience and to allow for optimized impls
+    fn expand_frames<In>(
+        input: In,
+        expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
+    ) -> Self {
+        expand_and_collapse::<Self::FrameToken, In, Self>(input, expand_frame, Self::from_frame)
     }
 }

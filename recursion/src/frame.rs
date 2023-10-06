@@ -16,7 +16,7 @@
 ///  [`PartiallyApplied`] enum marker, eg
 ///
 /// ```rust
-/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
+/// # use recursion::{MappableFrame, PartiallyApplied};
 /// # #[derive(Debug, PartialEq, Eq)]
 /// enum MyOption<A> {
 ///     Some(A),
@@ -39,7 +39,7 @@
 ///
 /// Here's what mapping over a `MyOption` frame looks like in action:
 /// ```rust
-/// # use recursion_schemes::{MappableFrame, PartiallyApplied};
+/// # use recursion::{MappableFrame, PartiallyApplied};
 /// # #[derive(Debug, PartialEq, Eq)]
 /// # enum MyOption<A> {
 /// #     Some(A),

@@ -1,4 +1,0 @@
-/target
-perf.data*
-criterion/*
-rustfmt.toml

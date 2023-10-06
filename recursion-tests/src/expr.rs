@@ -4,63 +4,57 @@ pub mod naive;
 
 use futures::FutureExt;
 use recursion::{
-    map_layer::MapLayer,
-    recursive_tree::{arena_eval::ArenaIndex, stack_machine_eval::StackMarker, RecursiveTree},
-};
-use recursion_schemes::{
     experimental::frame::{AsyncMappableFrame, MappableFrameRef},
-    MappableFrame,
+    MappableFrame, PartiallyApplied,
 };
 
 /// Simple expression language with some operations on integers
 #[derive(Debug, Clone, Copy)]
-pub enum Expr<A> {
+pub enum ExprFrame<A> {
     Add(A, A),
     Sub(A, A),
     Mul(A, A),
     LiteralInt(i64),
 }
 
-pub enum ExprFrameToken {}
-
-impl MappableFrame for ExprFrameToken {
-    type Frame<X> = Expr<X>;
+impl MappableFrame for ExprFrame<PartiallyApplied> {
+    type Frame<X> = ExprFrame<X>;
 
     #[inline(always)]
     fn map_frame<A, B>(input: Self::Frame<A>, mut f: impl FnMut(A) -> B) -> Self::Frame<B> {
         match input {
-            Expr::Add(a, b) => Expr::Add(f(a), f(b)),
-            Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
-            Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
-            Expr::LiteralInt(x) => Expr::LiteralInt(x),
+            ExprFrame::Add(a, b) => ExprFrame::Add(f(a), f(b)),
+            ExprFrame::Sub(a, b) => ExprFrame::Sub(f(a), f(b)),
+            ExprFrame::Mul(a, b) => ExprFrame::Mul(f(a), f(b)),
+            ExprFrame::LiteralInt(x) => ExprFrame::LiteralInt(x),
         }
     }
 }
 
-impl<A> Expr<A> {
+impl<A> ExprFrame<A> {
     async fn map_async<'a, B, E>(
-        input: Expr<A>,
+        input: ExprFrame<A>,
         mut f: impl FnMut(A) -> futures::future::BoxFuture<'a, Result<B, E>>,
-    ) -> Result<Expr<B>, E> {
+    ) -> Result<ExprFrame<B>, E> {
         match input {
-            Expr::Add(a, b) => {
+            ExprFrame::Add(a, b) => {
                 let (a, b) = tokio::try_join!(f(a), f(b))?;
-                Ok(Expr::Add(a, b))
+                Ok(ExprFrame::Add(a, b))
             }
-            Expr::Sub(a, b) => {
+            ExprFrame::Sub(a, b) => {
                 let (a, b) = tokio::try_join!(f(a), f(b))?;
-                Ok(Expr::Sub(a, b))
+                Ok(ExprFrame::Sub(a, b))
             }
-            Expr::Mul(a, b) => {
+            ExprFrame::Mul(a, b) => {
                 let (a, b) = tokio::try_join!(f(a), f(b))?;
-                Ok(Expr::Mul(a, b))
+                Ok(ExprFrame::Mul(a, b))
             }
-            Expr::LiteralInt(x) => Ok(Expr::LiteralInt(x)),
+            ExprFrame::LiteralInt(x) => Ok(ExprFrame::LiteralInt(x)),
         }
     }
 }
 
-impl AsyncMappableFrame for ExprFrameToken {
+impl AsyncMappableFrame for ExprFrame<PartiallyApplied> {
     fn map_frame_async<'a, A, B, E>(
         input: Self::Frame<A>,
         f: impl Fn(A) -> futures::future::BoxFuture<'a, Result<B, E>> + Send + Sync + 'a,
@@ -70,13 +64,13 @@ impl AsyncMappableFrame for ExprFrameToken {
         A: Send + 'a,
         B: Send + 'a,
     {
-        async { Expr::map_async(input, f).await }.boxed()
+        async { ExprFrame::map_async(input, f).await }.boxed()
     }
 }
 
 // used for testing experimental 'Compact' repr
-impl MappableFrameRef for ExprFrameToken {
-    type RefFrameToken<'a> = ExprFrameToken; // token doesn't actually own any data
+impl MappableFrameRef for ExprFrame<PartiallyApplied> {
+    type RefFrameToken<'a> = ExprFrame<PartiallyApplied>; // token doesn't actually own any data
 
     // NOTE: the frame fn here is only actually used with 'A' == () and 'B' == Out
     #[inline(always)]
@@ -84,44 +78,10 @@ impl MappableFrameRef for ExprFrameToken {
         input: &'a Self::Frame<X>,
     ) -> <Self::RefFrameToken<'a> as MappableFrame>::Frame<&'a X> {
         match input {
-            Expr::Add(a, b) => Expr::Add(a, b),
-            Expr::Sub(a, b) => Expr::Sub(a, b),
-            Expr::Mul(a, b) => Expr::Mul(a, b),
-            Expr::LiteralInt(x) => Expr::LiteralInt(*x),
+            ExprFrame::Add(a, b) => ExprFrame::Add(a, b),
+            ExprFrame::Sub(a, b) => ExprFrame::Sub(a, b),
+            ExprFrame::Mul(a, b) => ExprFrame::Mul(a, b),
+            ExprFrame::LiteralInt(x) => ExprFrame::LiteralInt(*x),
         }
     }
 }
-
-impl<A, B> MapLayer<B> for Expr<A> {
-    type To = Expr<B>;
-    type Unwrapped = A;
-
-    #[inline(always)]
-    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
-        match self {
-            Expr::Add(a, b) => Expr::Add(f(a), f(b)),
-            Expr::Sub(a, b) => Expr::Sub(f(a), f(b)),
-            Expr::Mul(a, b) => Expr::Mul(f(a), f(b)),
-            Expr::LiteralInt(x) => Expr::LiteralInt(x),
-        }
-    }
-}
-
-// this is, like, basically fine? - just usize and ()
-impl<'a, A: Copy, B: 'a> MapLayer<B> for &'a Expr<A> {
-    type To = Expr<B>;
-    type Unwrapped = A;
-
-    #[inline(always)]
-    fn map_layer<F: FnMut(Self::Unwrapped) -> B>(self, mut f: F) -> Self::To {
-        match self {
-            Expr::Add(a, b) => Expr::Add(f(*a), f(*b)),
-            Expr::Sub(a, b) => Expr::Sub(f(*a), f(*b)),
-            Expr::Mul(a, b) => Expr::Mul(f(*a), f(*b)),
-            Expr::LiteralInt(x) => Expr::LiteralInt(*x),
-        }
-    }
-}
-
-pub type DFSStackExpr = RecursiveTree<Expr<StackMarker>, StackMarker>;
-pub type BlocAllocExpr = RecursiveTree<Expr<ArenaIndex>, ArenaIndex>;
