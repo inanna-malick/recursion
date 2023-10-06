@@ -9,7 +9,7 @@ use recursion::{
 };
 use recursion_schemes::{
     experimental::frame::{AsyncMappableFrame, MappableFrameRef},
-    frame::MappableFrame,
+    MappableFrame,
 };
 
 /// Simple expression language with some operations on integers

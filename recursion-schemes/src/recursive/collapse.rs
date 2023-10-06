@@ -1,10 +1,10 @@
-use crate::{expand_and_collapse, MappableFrame};
+use crate::frame::{expand_and_collapse, MappableFrame};
 
 /// The ability to recursively collapse some type into some output type, frame by frame.
-/// 
+///
 /// # Example: A tree of integers
-/// 
-/// Here's an example showing how to use `Collapsible` to recursively collapse a binary tree of integers,
+///
+/// Here's an example showing how to use [`Collapsible`] to collapse a binary tree of integers,
 /// where nodes hold two subnodes and no data and leaves hold a single `usize` value
 ///
 /// ```rust
@@ -29,10 +29,10 @@ use crate::{expand_and_collapse, MappableFrame};
 /// ```
 ///
 /// ## Defining a frame type
-/// 
+///
 /// For working with values of type `IntTree`, we'll define an `IntTreeFrame<A>` frame type
 /// that represents a single layer of the `IntTree` structure, with `A` subbed in for `Box<Self>`
-/// 
+///
 /// ```rust
 /// # use recursion_schemes::{MappableFrame, PartiallyApplied};
 /// enum IntTreeFrame<A> {
@@ -55,7 +55,7 @@ use crate::{expand_and_collapse, MappableFrame};
 /// ```
 ///
 /// ## Implementing Collapsible
-/// 
+///
 /// Then we can define a collapse instance for `IntTree`
 ///
 /// ```rust
@@ -100,10 +100,10 @@ use crate::{expand_and_collapse, MappableFrame};
 ///     }
 /// }
 /// ```
-/// 
+///
 /// ## Collapsing a tree into a value
-/// 
-/// Finally, we can use our `Collapsible` instance to collapse an example tree into a single value.
+///
+/// Finally, we can use our [`Collapsible`] instance to collapse an example tree into a single value.
 /// In this case, we're just doing something simple - counting the number of leaves in the structure
 ///
 /// ```rust

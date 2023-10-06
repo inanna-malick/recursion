@@ -1,20 +1,20 @@
 /// A single 'frame' containing values that can be mapped over via `map_frame`.
-/// 
+///
 /// # Motivation
-/// 
+///
 /// Generally speaking, you won't use this trait yourself. It's used by the internal plumbing of
-/// `Collapsible` and `Expandable` to implement recursive traversals.
+/// [`crate::Collapsible`] and [`crate::Expandable`] to implement recursive traversals.
 ///
 /// # Implementing this trait
-/// 
+///
 /// This trait is usually implemented for some marker token, because rust does not
 /// allow for implementing a trait for a partially applied type. That is, we can implement
 /// a trait for `Option<usize>` but we can't implement a trait for just `Option`, because
 /// `Option` is a partially applied type.
-/// 
+///
 /// For this reason, a common convention is to implement this trait using the uninhabited
-///  `PartiallyApplied` enum marker, eg
-/// 
+///  [`PartiallyApplied`] enum marker, eg
+///
 /// ```rust
 /// # use recursion_schemes::{MappableFrame, PartiallyApplied};
 /// # #[derive(Debug, PartialEq, Eq)]
@@ -69,7 +69,7 @@ pub trait MappableFrame {
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 
-/// `PartiallyApplied` is an uninhabited enum - a type that cannot exist at runtime.
+/// [`PartiallyApplied`] is an uninhabited enum - a type that cannot exist at runtime.
 /// It is used to defined MappableFrame instances for partially-applied types.
 ///
 /// For example: the MappableFrame instance for `MyFrame<A>` cannot be written over the
@@ -86,7 +86,7 @@ pub enum PartiallyApplied {}
 /// This function is stack safe (it does not use the call stack), but it
 /// does use an internal stack data structure and is thus, technically,
 /// susceptible to stack overflows if said stack expands
-pub fn expand_and_collapse<F: MappableFrame, Seed, Out>(
+pub(crate) fn expand_and_collapse<F: MappableFrame, Seed, Out>(
     seed: Seed,
     mut expand_frame: impl FnMut(Seed) -> F::Frame<Seed>,
     mut collapse_frame: impl FnMut(F::Frame<Out>) -> Out,

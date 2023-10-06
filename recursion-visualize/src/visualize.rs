@@ -1,7 +1,6 @@
 use std::fmt::Display;
-use recursion_schemes::frame::MappableFrame;
-use recursion_schemes::recursive::collapse::Collapsible;
-use recursion_schemes::recursive::expand::Expandable;
+
+use recursion_schemes::{Collapsible, Expandable, MappableFrame};
 
 /// The ability to collapse a value into some output type, frame by frame
 pub trait CollapsibleV: Collapsible
@@ -9,7 +8,6 @@ where
     Self: Sized + Display,
     <Self::FrameToken as MappableFrame>::Frame<()>: Display,
 {
-
     /// defined on trait for convenience and to allow for optimized impls
     fn collapse_frames_v<Out>(
         self,
@@ -21,8 +19,6 @@ where
         expand_and_collapse_v::<Self::FrameToken, Self, Out>(self, Self::into_frame, collapse_frame)
     }
 }
-
-
 
 pub trait ExpandableV: Expandable
 where
@@ -59,8 +55,8 @@ pub enum VizAction {
     // info text display!
     InfoCard {
         info_header: String,
-        info_txt: String
-    }
+        info_txt: String,
+    },
 }
 
 // impl VizAction {
@@ -87,9 +83,11 @@ pub struct Viz {
 }
 
 impl Viz {
-
     pub fn label(mut self, info_header: String, info_txt: String) -> Self {
-        let mut actions = vec![VizAction::InfoCard { info_header, info_txt }];
+        let mut actions = vec![VizAction::InfoCard {
+            info_header,
+            info_txt,
+        }];
         actions.extend(self.actions.into_iter());
         self.actions = actions;
 
@@ -98,7 +96,10 @@ impl Viz {
 
     pub fn fuse(self, next: Self, info_header: String, info_txt: String) -> Self {
         let mut actions = self.actions;
-        actions.push(VizAction::InfoCard { info_txt, info_header });
+        actions.push(VizAction::InfoCard {
+            info_txt,
+            info_header,
+        });
         actions.extend(next.actions.into_iter());
 
         Self {
@@ -129,7 +130,8 @@ pub fn serialize_html(v: Viz) -> serde_json::Result<String> {
 
 pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
     use serde_json::value::Value;
-    let actions: Vec<Value> = v.actions
+    let actions: Vec<Value> = v
+        .actions
         .into_iter()
         .map(|elem| match elem {
             VizAction::ExpandSeed {
@@ -162,12 +164,12 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
                 h.insert("txt".to_string(), Value::String(txt));
                 Value::Object(h)
             }
-            VizAction::InfoCard { info_txt, info_header } => {
+            VizAction::InfoCard {
+                info_txt,
+                info_header,
+            } => {
                 let mut h = serde_json::Map::new();
-                h.insert(
-                    "info_txt".to_string(),
-                    Value::String(info_txt.to_string()),
-                );
+                h.insert("info_txt".to_string(), Value::String(info_txt.to_string()));
                 h.insert(
                     "info_header".to_string(),
                     Value::String(info_header.to_string()),

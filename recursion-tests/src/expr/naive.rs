@@ -1,9 +1,7 @@
 use crate::expr::*;
 use proptest::prelude::*;
 use recursion::map_layer::Project;
-use recursion_schemes::{
-    experimental::recursive::collapse::CollapsibleAsync, recursive::collapse::Collapsible,
-};
+use recursion_schemes::{experimental::recursive::collapse::CollapsibleAsync, Collapsible};
 
 /// simple naive representation of a recursive expression AST.
 #[derive(Debug, Clone)]

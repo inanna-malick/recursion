@@ -1,10 +1,10 @@
-use crate::{expand_and_collapse, MappableFrame};
+use crate::frame::{expand_and_collapse, MappableFrame};
 
 /// The ability to recursively expand a seed to construct a value of this type, frame by frame.
-/// 
+///
 /// # Example: A tree of integers
-/// 
-/// Here's an example showing how to use `Collapsible` to recursively collapse a binary tree of integers,
+///
+/// Here's an example showing how to use [`Expandable`] to expand a binary tree of integers,
 /// where nodes hold two subnodes and no data and leaves hold a single `usize` value
 ///
 /// ```rust
@@ -22,10 +22,10 @@ use crate::{expand_and_collapse, MappableFrame};
 /// ```
 ///
 /// ## Defining a frame type
-/// 
+///
 /// For working with values of type `IntTree`, we'll define an `IntTreeFrame<A>` frame type
 /// that represents a single layer of the `IntTree` structure, with `A` subbed in for `Box<Self>`
-/// 
+///
 /// ```rust
 /// # use recursion_schemes::{MappableFrame, PartiallyApplied};
 /// enum IntTreeFrame<A> {
@@ -46,10 +46,10 @@ use crate::{expand_and_collapse, MappableFrame};
 /// #     }
 /// }
 /// ```
-/// 
+///
 /// ## Implementing Expandable
-/// 
-/// Then we can define an `Expandable` instance for `IntTree`
+///
+/// Then we can define an [`Expandable`] instance for `IntTree`
 ///
 /// ```rust
 /// # use recursion_schemes::{MappableFrame, PartiallyApplied};
@@ -91,8 +91,8 @@ use crate::{expand_and_collapse, MappableFrame};
 /// }
 /// ```
 /// ## Expanding a value into a tree
-/// 
-/// Finally, we can use our `Expandable` instance to generate a tree
+///
+/// Finally, we can use our [`Expandable`] instance to generate a tree
 ///
 /// ```rust
 /// # use recursion_schemes::{MappableFrame, PartiallyApplied};
