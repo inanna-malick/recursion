@@ -3,12 +3,31 @@ use std::fmt::Display;
 use recursion::{Collapsible, Expandable, MappableFrame};
 
 /// The ability to collapse a value into some output type, frame by frame
-pub trait CollapsibleV: Collapsible
+pub trait CollapsibleVizExt: Collapsible
 where
     Self: Sized + Display,
     <Self::FrameToken as MappableFrame>::Frame<()>: Display,
 {
-    /// defined on trait for convenience and to allow for optimized impls
+    fn collapse_frames_v<Out>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
+    ) -> (Out, Viz)
+    where
+        Out: Display;
+
+    fn try_collapse_frames_v<Out, E: Display>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Result<Out, E>,
+    ) -> (Result<Out, E>, Viz)
+    where
+        Out: Display;
+}
+
+impl<X: Collapsible> CollapsibleVizExt for X
+where
+    Self: Sized + Display,
+    <Self::FrameToken as MappableFrame>::Frame<()>: Display,
+{
     fn collapse_frames_v<Out>(
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
@@ -18,14 +37,40 @@ where
     {
         expand_and_collapse_v::<Self::FrameToken, Self, Out>(self, Self::into_frame, collapse_frame)
     }
+
+    fn try_collapse_frames_v<Out, E: Display>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Result<Out, E>,
+    ) -> (Result<Out, E>, Viz)
+    where
+        Out: Display,
+    {
+        try_expand_and_collapse_v::<Self::FrameToken, Self, Out, E>(
+            self,
+            |x| Ok(Self::into_frame(x)),
+            collapse_frame,
+        )
+    }
 }
 
-pub trait ExpandableV: Expandable
+pub trait ExpandableVizExt: Expandable
 where
     Self: Sized + Display,
     <Self::FrameToken as MappableFrame>::Frame<()>: Display,
 {
-    /// defined on trait for convenience and to allow for optimized impls
+    fn expand_frames_v<In>(
+        input: In,
+        expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
+    ) -> (Self, Viz)
+    where
+        In: Display;
+}
+
+impl<X: Expandable> ExpandableVizExt for X
+where
+    Self: Sized + Display,
+    <Self::FrameToken as MappableFrame>::Frame<()>: Display,
+{
     fn expand_frames_v<In>(
         input: In,
         expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
@@ -198,6 +243,118 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
     serde_json::to_string(&viz_js)
 }
 
+pub fn try_expand_and_collapse_v<F, Seed, Out, E>(
+    seed: Seed,
+    mut coalg: impl FnMut(Seed) -> Result<F::Frame<Seed>, E>,
+    mut alg: impl FnMut(F::Frame<Out>) -> Result<Out, E>,
+) -> (Result<Out, E>, Viz)
+where
+    F: MappableFrame,
+    E: Display,
+    F::Frame<()>: Display,
+    Seed: Display,
+    Out: Display,
+{
+    enum State<Pre, Post> {
+        PreVisit(Pre),
+        PostVisit(Post),
+    }
+
+    let mut keygen = 1; // 0 is used for root node
+    let mut v = Vec::new();
+    let root_seed_txt = format!("{}", seed);
+
+    let mut vals: Vec<Out> = vec![];
+    let mut todo: Vec<State<(VizNodeId, Seed), _>> = vec![State::PreVisit((0, seed))];
+
+    while let Some(item) = todo.pop() {
+        match item {
+            State::PreVisit((viz_node_id, seed)) => {
+                let mut seeds_v = Vec::new();
+
+                let node = match coalg(seed) {
+                    Ok(node) => node,
+                    Err(e) => {
+                        v.push(VizAction::InfoCard {
+                            info_header: "Error during expand!".to_string(),
+                            info_txt: format!("error: {}", e),
+                        });
+                        return (
+                            Err(e),
+                            Viz {
+                                seed_txt: root_seed_txt,
+                                root_id: 0,
+                                actions: v,
+                            },
+                        );
+                    }
+                };
+                let mut topush = Vec::new();
+                let node = F::map_frame(node, |seed| {
+                    let k = keygen;
+                    keygen += 1;
+                    seeds_v.push((k, format!("{}", seed)));
+
+                    topush.push(State::PreVisit((k, seed)))
+                });
+
+                v.push(VizAction::ExpandSeed {
+                    target_id: viz_node_id,
+                    txt: format!("{}", node),
+                    seeds: seeds_v,
+                });
+
+                todo.push(State::PostVisit((viz_node_id, node)));
+                todo.extend(topush.into_iter());
+            }
+            State::PostVisit((viz_node_id, node)) => {
+                let node = F::map_frame(node, |_: ()| vals.pop().unwrap());
+
+                let out = match alg(node) {
+                    Ok(out) => out,
+                    Err(e) => {
+                        v.push(VizAction::InfoCard {
+                            info_header: "Error during collapse!".to_string(),
+                            info_txt: format!("error: {}", e),
+                        });
+                        return (
+                            Err(e),
+                            Viz {
+                                seed_txt: root_seed_txt,
+                                root_id: 0,
+                                actions: v,
+                            },
+                        );
+                    }
+                };
+
+                v.push(VizAction::CollapseNode {
+                    target_id: viz_node_id,
+                    txt: format!("{}", out),
+                });
+
+                vals.push(out)
+            }
+        };
+    }
+
+    let out = vals.pop().unwrap();
+
+    v.push(VizAction::InfoCard {
+        info_header: "Completed".to_string(),
+        info_txt: format!("result: {}", out),
+    });
+
+    (
+        Ok(out),
+        Viz {
+            seed_txt: root_seed_txt,
+            root_id: 0,
+            actions: v,
+        },
+    )
+}
+
 // use std::fmt::Debug;
 // TODO: split out root seed case to separate field on return obj, not needed as part of enum!
 pub fn expand_and_collapse_v<F, Seed, Out>(
@@ -262,8 +419,16 @@ where
             }
         };
     }
+
+    let out = vals.pop().unwrap();
+
+    v.push(VizAction::InfoCard {
+        info_header: "Completed".to_string(),
+        info_txt: format!("result: {}", out),
+    });
+
     (
-        vals.pop().unwrap(),
+        out,
         Viz {
             seed_txt: root_seed_txt,
             root_id: 0,

@@ -64,6 +64,7 @@ impl CollapsibleAsync for usize {
 
 #[test]
 fn peano_numbers() {
+    use crate::recursive::CollapsibleExt;
     let x: usize = 3;
 
     let peano_repr: String = x.collapse_frames(|frame: Peano<String>| match frame {

@@ -122,3 +122,49 @@ pub(crate) fn expand_and_collapse<F: MappableFrame, Seed, Out>(
     }
     vals[0].take().unwrap()
 }
+
+/// This function generates a fallible stack machine for some frame `F::Frame`,
+/// expanding some seed value `Seed` into frames via a function `Seed -> Result<Frame<Seed>, E>`
+/// and collapsing those values via a function `Frame<Out> -> Result<Out, E>`.
+///
+/// This function performs a depth-first traversal, expanding and collapsing each branch in turn
+///
+/// This function is stack safe (it does not use the call stack), but it
+/// does use an internal stack data structure and is thus, technically,
+/// susceptible to stack overflows if said stack expands
+pub(crate) fn try_expand_and_collapse<F: MappableFrame, Seed, Out, E>(
+    seed: Seed,
+    mut expand_frame: impl FnMut(Seed) -> Result<F::Frame<Seed>, E>,
+    mut collapse_frame: impl FnMut(F::Frame<Out>) -> Result<Out, E>,
+) -> Result<Out, E> {
+    enum State<Seed, CollapsibleInternal> {
+        Expand(usize, Seed),
+        Collapse(usize, CollapsibleInternal),
+    }
+
+    let mut vals: Vec<Option<Out>> = vec![None];
+    let mut stack = vec![State::Expand(0, seed)];
+
+    while let Some(item) = stack.pop() {
+        match item {
+            State::Expand(val_idx, seed) => {
+                let node = expand_frame(seed)?;
+                let mut seeds = Vec::new();
+                let node = F::map_frame(node, |seed| {
+                    vals.push(None);
+                    let idx = vals.len() - 1;
+                    seeds.push(State::Expand(idx, seed));
+                    idx
+                });
+
+                stack.push(State::Collapse(val_idx, node));
+                stack.extend(seeds);
+            }
+            State::Collapse(val_idx, node) => {
+                let node = F::map_frame(node, |k| vals[k].take().unwrap());
+                vals[val_idx] = Some(collapse_frame(node)?);
+            }
+        };
+    }
+    Ok(vals[0].take().unwrap())
+}

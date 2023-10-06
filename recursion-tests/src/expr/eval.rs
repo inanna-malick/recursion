@@ -81,7 +81,7 @@ pub fn naive_eval(expr: &Expr) -> i64 {
 proptest! {
     #[test]
     fn expr_eval(expr in arb_expr()) {
-        use recursion::Collapsible;
+        use recursion::CollapsibleExt;
 
         // NOTE: this helped me find one serious bug in the old cata impl,
         //   where it was doing vec pop instead of vec head_pop so switched to VecDequeue.
@@ -89,6 +89,7 @@ proptest! {
         let simple = naive_eval(&expr);
         let expr = Box::new(expr);
         let eval_gat = expr.as_ref().collapse_frames(eval_layer);
+        let eval_gat_try: Result<i64, String> = expr.as_ref().try_collapse_frames(|x| Ok(eval_layer(x)));
 
 
         // simple async eval, but really - TODO: something more definitively impressive
@@ -105,6 +106,7 @@ proptest! {
 
         assert_eq!(simple, eval_gat);
         assert_eq!(Ok(simple), eval_gat_async);
+        assert_eq!(Ok(simple), eval_gat_try);
     }
 
 }

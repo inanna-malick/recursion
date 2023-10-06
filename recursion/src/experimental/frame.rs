@@ -16,46 +16,6 @@ pub trait MappableFrameRef: MappableFrame {
     fn as_ref<X>(input: &Self::Frame<X>) -> <Self::RefFrameToken<'_> as MappableFrame>::Frame<&X>;
 }
 
-pub trait TryMappableFrame: MappableFrame {
-    // NOTE: can I do anything about implicit ordering requirement here?
-    fn try_map_frame<A, B, E>(
-        input: Self::Frame<A>,
-        f: impl FnMut(A) -> Result<B, E>,
-    ) -> Result<Self::Frame<B>, E>;
-}
-
-pub fn try_expand_and_collapse<F: TryMappableFrame, Seed, Out, E>(
-    seed: Seed,
-    mut expand_frame: impl FnMut(Seed) -> Result<F::Frame<Seed>, E>,
-    mut collapse_frame: impl FnMut(F::Frame<Out>) -> Result<Out, E>,
-) -> Result<Out, E> {
-    enum State<Seed, CollapsibleInternal> {
-        Expand(Seed),
-        Collapse(CollapsibleInternal),
-    }
-
-    let mut vals: Vec<Out> = vec![];
-    let mut stack = vec![State::Expand(seed)];
-
-    while let Some(item) = stack.pop() {
-        match item {
-            State::Expand(seed) => {
-                let node = expand_frame(seed)?;
-                let mut seeds = Vec::new();
-                let node = F::map_frame(node, |seed| seeds.push(seed));
-
-                stack.push(State::Collapse(node));
-                stack.extend(seeds.into_iter().map(State::Expand));
-            }
-            State::Collapse(node) => {
-                let node = F::map_frame(node, |_: ()| vals.pop().unwrap());
-                vals.push(collapse_frame(node)?)
-            }
-        };
-    }
-    Ok(vals.pop().unwrap())
-}
-
 pub trait AsyncMappableFrame: MappableFrame {
     // NOTE: what does having 'a here mean/imply? should 'a bound be on A/B/E?
     fn map_frame_async<'a, A, B, E>(

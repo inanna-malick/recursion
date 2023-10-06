@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
-use recursion::{experimental::compact::Compact, Collapsible, Expandable};
+use recursion::{experimental::compact::Compact, ExpandableExt, CollapsibleExt};
 use recursion_tests::expr::{
     eval::{eval_layer, naive_eval},
     naive::Expr,
@@ -32,9 +32,7 @@ fn bench_eval(criterion: &mut Criterion) {
     // let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
     // group.plot_config(plot_config);
 
-    for (depth, boxed_big_expr, boxed_big_compact) in
-        test_cases.into_iter()
-    {
+    for (depth, boxed_big_expr, boxed_big_compact) in test_cases.into_iter() {
         group.bench_with_input(
             BenchmarkId::new("traditional boxed method", depth),
             &boxed_big_expr,

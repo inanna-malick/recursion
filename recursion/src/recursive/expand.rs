@@ -8,7 +8,7 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// where nodes hold two subnodes and no data and leaves hold a single `usize` value
 ///
 /// ```rust
-/// # use recursion::{MappableFrame, PartiallyApplied};
+/// # use recursion::*;
 /// #[derive(Debug, PartialEq, Eq)]
 /// enum IntTree {
 ///     Leaf { value: usize },
@@ -27,7 +27,7 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// that represents a single layer of the `IntTree` structure, with `A` subbed in for `Box<Self>`
 ///
 /// ```rust
-/// # use recursion::{MappableFrame, PartiallyApplied};
+/// # use recursion::*;
 /// enum IntTreeFrame<A> {
 ///     Leaf { value: usize },
 ///     Node { left: A, right: A },
@@ -52,8 +52,7 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// Then we can define an [`Expandable`] instance for `IntTree`
 ///
 /// ```rust
-/// # use recursion::{MappableFrame, PartiallyApplied};
-/// # use recursion::Expandable;
+/// # use recursion::*;
 /// # #[derive(Debug, PartialEq, Eq)]
 /// # enum IntTree {
 /// #     Leaf { value: usize },
@@ -95,8 +94,7 @@ use crate::frame::{expand_and_collapse, MappableFrame};
 /// Finally, we can use our [`Expandable`] instance to generate a tree
 ///
 /// ```rust
-/// # use recursion::{MappableFrame, PartiallyApplied};
-/// # use recursion::Expandable;
+/// # use recursion::*;
 /// # #[derive(Debug, PartialEq, Eq)]
 /// # enum IntTree {
 /// #     Leaf { value: usize },
@@ -165,11 +163,18 @@ where
 
     /// Given a frame holding instances of `Self`, generate an instance of `Self`
     fn from_frame(val: <Self::FrameToken as MappableFrame>::Frame<Self>) -> Self;
+}
 
+pub trait ExpandableExt: Expandable {
     /// Given a value of type `In`, expand it to generate a value of type `Self` frame by frame,
     /// using a function from `In -> Frame<In>`
-    ///
-    /// defined on trait for convenience and to allow for optimized impls
+    fn expand_frames<In>(
+        input: In,
+        expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
+    ) -> Self;
+}
+
+impl<X: Expandable> ExpandableExt for X {
     fn expand_frames<In>(
         input: In,
         expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,

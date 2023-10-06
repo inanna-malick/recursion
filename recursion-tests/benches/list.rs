@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
-use recursion::{Collapsible, MappableFrame};
+use recursion::{Collapsible, MappableFrame, CollapsibleExt};
 
 enum PartiallyApplied {}
 
