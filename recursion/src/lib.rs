@@ -1,13 +1,34 @@
 /*!
 
-This crate provides tools for working with recursive data structures and computation in
-a concise, stack safe, and performant manner.
+This crate provides tools for working with recursive data structures in a concise, stack safe, 
+and performant manner. It accomplishes that by separating the _machinery_
+of recursion from the _logic_ of recursion. This is similar to how iterators separate the _machinery_ of
+iteration from the _logic_ of iteration, allowing us to go from this:
 
-TODO: discuss separation of logic and machinery of recursion
+```rust
+# let prices = vec![1, 2, 3];
+let mut n = 0;
+while n <  prices.len() {
+    print!("{}", prices[n]);
+    n += 1;
+}
+```
+
+to this:
+
+```rust
+# let prices = vec![1, 2, 3];
+for n in prices.iter() {
+    print!("{}", n)
+}
+```
+
+This second example is less verbose, has less boilerplate, and is generally nicer to work with. This crate
+aims to provide similar tools for working with recursive data structures.
 
 # Here's how it works: Expr
 
-Let's say you have a recursive data structure - an expression in a simple expression language
+For these examples, we will be using a simple recursive data structure - an expression language
 that supports a few mathematical operations.
 
 ```rust
@@ -20,7 +41,7 @@ pub enum Expr {
 ```
 
 For working with this `Expr` type we'll define a _frame_ type `ExprFrame<A>`.
-It's exactly the same as Expr, except `Box<Self>` is replaced with `A`
+It's exactly the same as Expr, except the recursive self-reference `Box<Self>` is replaced with `A`
 
 ```rust
 pub enum ExprFrame<A> {
@@ -32,35 +53,11 @@ pub enum ExprFrame<A> {
 ```
 
 Now all we need is some mechanical boilerplate: [`MappableFrame`] for `ExprFrame` and [`Expandable`] and [`Collapsible`] for `Expr`.
-I'll elide that for now, but read the documentation for the above traits to learn what they do and how to implement them.
+I'll elide that for now, but you can read the documentation for the above traits to learn what they do and how to implement them.
 
 # Collapsing an Expr into a value
 
-We'll be working with this `Expr` (constructed via some elided helper functions)
-```rust
-# pub enum Expr {
-#     Add(Box<Expr>, Box<Expr>),
-#     Sub(Box<Expr>, Box<Expr>),
-#     Mul(Box<Expr>, Box<Expr>),
-#     LiteralInt(i64),
-# }
-#     fn add(a: Expr, b: Expr) -> Expr {
-#         Expr::Add(Box::new(a), Box::new(b))
-#     }
-#     fn subtract(a: Expr, b: Expr) -> Expr {
-#         Expr::Sub(Box::new(a), Box::new(b))
-#     }
-#     fn multiply(a: Expr, b: Expr) -> Expr {
-#         Expr::Mul(Box::new(a), Box::new(b))
-#     }
-#     fn literal(n: i64) -> Expr {
-#         Expr::LiteralInt(n)
-#     }
-// (1 - 2) * 3
-let expr = multiply(subtract(literal(1), literal(2)), literal(3));
-```
-
-This example shows how to evaluate expression using this idiom:
+Here's how to evaluate an `Expr` using this idiom, by collapsing it frame by frame via a function `ExprFrame<i64> -> i64`:
 
 ```rust
 # pub enum Expr {
@@ -110,7 +107,6 @@ This example shows how to evaluate expression using this idiom:
 #         }
 #     }
 # }
-# let expr = multiply(subtract(literal(1), literal(2)), literal(3));
 fn eval(e: &Expr) -> i64 {
     e.collapse_frames(|frame| match frame {
         ExprFrame::Add(a, b) => a + b,
@@ -120,14 +116,17 @@ fn eval(e: &Expr) -> i64 {
     })
 }
 
+let expr = multiply(subtract(literal(1), literal(2)), literal(3));
 assert_eq!(eval(&expr), -3);
 ```
 
 # Fallible functions
 
-At this point, you may have noticed something: I've ommited division, which is a fallible operation
-because division by 0 is undefined. Here's how to implement a division function that returns an `Err`
-if the expression attempts division by 0:
+At this point, you may have noticed that I've ommited division, which is a fallible operation
+because division by 0 is undefined. Many real world algorithms also have to handle failible operations,
+such as this. That's why this crate also provides tools for collapsing and expanding recursive data
+structures using fallible functions, like (in this case) `ExprFrame<i64> -> Result<i64, Err>`.
+
 
 ```rust
 # pub enum Expr {
@@ -205,7 +204,7 @@ assert_eq!(try_eval(&invalid_expr), Err("cannot divide by zero"));
 
 # Expanding an Expr from a seed value
 
-Here's an example showing how to expand an `Expr` from a seed value
+Here's an example showing how to expand a simple `Expr` from a seed value
 
 ```rust
 # #[derive(Debug, PartialEq, Eq)]
@@ -284,14 +283,14 @@ assert_eq!(expected, build_expr(2));
 ```
 
 
-# Misc etc
+# Miscel'aneous errata
 
-TODO: It borrows some tricks from Haskell - specifically recursion schemes - discuss this
+If you're familiar with Haskell, you may have noticed that this crate makes heavy use of recursion schemes idioms.
+I've named the traits used with an eye towards readability for users unfamiliar with those idioms, but feel free to
+read [`MappableFrame`] as `Functor` and [`Expandable`]/[`Collapsible`] as `Corecursive`/`Recursive`. If you're not
+familiar with these idioms, there's a great blog post series [here](https://blog.sumtypeofway.com/posts/introduction-to-recursion-schemes.html) that explains the various concepts involved.
 
-TODO: generate visualizations for the above and include them
-
-
- */
+*/
 mod frame;
 mod recursive;
 
