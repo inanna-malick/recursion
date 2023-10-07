@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="This crate provides tools for working with recursive data structures in a concise, stack safe,  and performant manner. It accomplishes that by separating the machinery of recursion from the logic of recursion. This is similar to how iterators separate the machinery of iteration from the logic of iteration, allowing us to go from this:"><title>recursion - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-9bb858ba049f1f21.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="recursion" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.1 (d5c2e9c34 2023-09-13)" data-channel="1.72.1" data-search-js="search-f6292fe389d70017.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ><script src="../static.files/storage-59fd9b8ccb335783.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../recursion/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../recursion/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Crate recursion</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 0.5.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">recursion</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/recursion/lib.rs.html#1-320">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>This crate provides tools for working with recursive data structures in a concise, stack safe, 
+and performant manner. It accomplishes that by separating the <em>machinery</em>
+of recursion from the <em>logic</em> of recursion. This is similar to how iterators separate the <em>machinery</em> of
+iteration from the <em>logic</em> of iteration, allowing us to go from this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span><span class="kw-2">mut </span>n = <span class="number">0</span>;
+<span class="kw">while </span>n &lt; prices.len() {
+    <span class="macro">print!</span>(<span class="string">&quot;{}&quot;</span>, prices[n]);
+    n += <span class="number">1</span>;
+}</code></pre></div>
+<p>to this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">for </span>n <span class="kw">in </span>prices.iter() {
+    <span class="macro">print!</span>(<span class="string">&quot;{}&quot;</span>, n)
+}</code></pre></div>
+<p>This second example is less verbose, has less boilerplate, and is generally nicer to work with. This crate
+aims to provide similar tools for working with recursive data structures.</p>
+<h2 id="heres-how-it-works-expr"><a href="#heres-how-it-works-expr">Here’s how it works: Expr</a></h2>
+<p>For these examples, we will be using a simple recursive data structure - an expression language
+that supports a few mathematical operations.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub enum </span>Expr {
+    Add(Box&lt;Expr&gt;, Box&lt;Expr&gt;),
+    Sub(Box&lt;Expr&gt;, Box&lt;Expr&gt;),
+    Mul(Box&lt;Expr&gt;, Box&lt;Expr&gt;),
+    LiteralInt(i64),
+}</code></pre></div>
+<p>For working with this <code>Expr</code> type we’ll define a <em>frame</em> type <code>ExprFrame&lt;A&gt;</code>.
+It’s exactly the same as <code>Expr</code>, except the recursive self-reference <code>Box&lt;Self&gt;</code> is replaced with <code>A</code>.
+This may be a bit confusing at first, but this idiom unlocks a lot of potential (expressiveness, stack safety, etc).
+You can think of <code>ExprFrame&lt;A&gt;</code> as representing a single <em>stack frame</em> in a recursive algorithm.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub enum </span>ExprFrame&lt;A&gt; {
+    Add(A, A),
+    Sub(A, A),
+    Mul(A, A),
+    LiteralInt(i64),
+}</code></pre></div>
+<p>Now all we need is some mechanical boilerplate: <a href="trait.MappableFrame.html" title="trait recursion::MappableFrame"><code>MappableFrame</code></a> for <code>ExprFrame</code> and <a href="trait.Expandable.html" title="trait recursion::Expandable"><code>Expandable</code></a> and <a href="trait.Collapsible.html" title="trait recursion::Collapsible"><code>Collapsible</code></a> for <code>Expr</code>.
+I’ll elide that for now, but you can read the documentation for the above traits to learn what they do and how to implement them.</p>
+<h2 id="collapsing-an-expr-into-a-value"><a href="#collapsing-an-expr-into-a-value">Collapsing an Expr into a value</a></h2>
+<p>Here’s how to evaluate an <code>Expr</code> using this idiom, by collapsing it frame by frame via a function <code>ExprFrame&lt;i64&gt; -&gt; i64</code>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn </span>eval(e: <span class="kw-2">&amp;</span>Expr) -&gt; i64 {
+    e.collapse_frames(|frame| <span class="kw">match </span>frame {
+        ExprFrame::Add(a, b) =&gt; a + b,
+        ExprFrame::Sub(a, b) =&gt; a - b,
+        ExprFrame::Mul(a, b) =&gt; a * b,
+        ExprFrame::LiteralInt(x) =&gt; x,
+    })
+}
+
+<span class="kw">let </span>expr = multiply(subtract(literal(<span class="number">1</span>), literal(<span class="number">2</span>)), literal(<span class="number">3</span>));
+<span class="macro">assert_eq!</span>(eval(<span class="kw-2">&amp;</span>expr), -<span class="number">3</span>);</code></pre></div>
+<p>Here’s a GIF visualizing the operation of <code>collapse_frames</code>:</p>
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/eval.gif">
+<h2 id="fallible-functions"><a href="#fallible-functions">Fallible functions</a></h2>
+<p>At this point, you may have noticed that We’ve ommited division, which is a fallible operation
+because division by 0 is undefined. Many real world algorithms also have to handle failible operations,
+such as this. That’s why this crate also provides tools for collapsing and expanding recursive data
+structures using fallible functions, like (in this case) <code>ExprFrame&lt;i64&gt; -&gt; Result&lt;i64, Err&gt;</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>
+<span class="kw">fn </span>try_eval(e: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;i64, <span class="kw-2">&amp;</span>str&gt; {
+    e.try_collapse_frames(|frame| <span class="kw">match </span>frame {
+                ExprFrame::Add(a, b) =&gt; <span class="prelude-val">Ok</span>(a + b),
+                ExprFrame::Sub(a, b) =&gt; <span class="prelude-val">Ok</span>(a - b),
+                ExprFrame::Mul(a, b) =&gt; <span class="prelude-val">Ok</span>(a * b),
+                ExprFrame::Div(a, b) =&gt;
+                    <span class="kw">if </span>b == <span class="number">0 </span>{ <span class="prelude-val">Err</span>(<span class="string">&quot;cannot divide by zero&quot;</span>)} <span class="kw">else </span>{<span class="prelude-val">Ok</span>(a / b)},
+                ExprFrame::LiteralInt(x) =&gt; <span class="prelude-val">Ok</span>(x),
+    })
+}
+
+<span class="kw">let </span>valid_expr = multiply(subtract(literal(<span class="number">1</span>), literal(<span class="number">2</span>)), literal(<span class="number">3</span>));
+<span class="kw">let </span>invalid_expr = divide(literal(<span class="number">2</span>), literal(<span class="number">0</span>));
+
+<span class="macro">assert_eq!</span>(try_eval(<span class="kw-2">&amp;</span>valid_expr), <span class="prelude-val">Ok</span>(-<span class="number">3</span>));
+<span class="macro">assert_eq!</span>(try_eval(<span class="kw-2">&amp;</span>invalid_expr), <span class="prelude-val">Err</span>(<span class="string">&quot;cannot divide by zero&quot;</span>));</code></pre></div>
+<p>Here’s a GIF visualizing the operation of <code>try_collapse_frames</code> for <code>valid_expr</code>:</p>
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_valid.gif">
+<p>And here’s a GIF visualizing the operation of <code>try_collapse_frames</code> for <code>invalid_expr</code>:</p>
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_invalid.gif">
+<h2 id="expanding-an-expr-from-a-seed-value"><a href="#expanding-an-expr-from-a-seed-value">Expanding an Expr from a seed value</a></h2>
+<p>Here’s an example showing how to expand a simple <code>Expr</code> from a seed value</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn </span>build_expr(depth: usize) -&gt; Expr {
+    Expr::expand_frames(depth, |depth| {
+        <span class="kw">if </span>depth &gt; <span class="number">0 </span>{
+            ExprFrame::Add(depth - <span class="number">1</span>, depth - <span class="number">1</span>)
+        } <span class="kw">else </span>{
+            ExprFrame::LiteralInt(<span class="number">1</span>)
+        }
+    })
+}
+
+<span class="kw">let </span>expected = add(add(literal(<span class="number">1</span>), literal(<span class="number">1</span>)), add(literal(<span class="number">1</span>), literal(<span class="number">1</span>)));
+
+<span class="macro">assert_eq!</span>(expected, build_expr(<span class="number">2</span>));
+</code></pre></div>
+<p>Here’s a GIF visualizing the operation of `expand_frames``:</p>
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/build_expr.gif">
+<h2 id="miscellaneous-errata"><a href="#miscellaneous-errata">Miscellaneous errata</a></h2>
+<p>All GIFs in this documentation were generated via tooling in my <code>recursion-visualize</code> crate, via <code>examples/expr.rs</code>.</p>
+<p>If you’re familiar with Haskell, you may have noticed that this crate makes heavy use of recursion schemes idioms.
+I’ve named the traits used with an eye towards readability for users unfamiliar with those idioms, but feel free to
+read <a href="trait.MappableFrame.html" title="trait recursion::MappableFrame"><code>MappableFrame</code></a> as <code>Functor</code> and <a href="trait.Expandable.html" title="trait recursion::Expandable"><code>Expandable</code></a>/<a href="trait.Collapsible.html" title="trait recursion::Collapsible"><code>Collapsible</code></a> as <code>Corecursive</code>/<code>Recursive</code>. If you’re not
+familiar with these idioms, there’s a great blog post series <a href="https://blog.sumtypeofway.com/posts/introduction-to-recursion-schemes.html">here</a> that explains the various concepts involved.</p>
+</div></details><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.PartiallyApplied.html" title="enum recursion::PartiallyApplied">PartiallyApplied</a></div><div class="desc docblock-short"><a href="enum.PartiallyApplied.html" title="enum recursion::PartiallyApplied"><code>PartiallyApplied</code></a> is an uninhabited enum - a type that cannot exist at runtime.
+It is used to defined MappableFrame instances for partially-applied types.</div></li></ul><h2 id="traits" class="small-section-header"><a href="#traits">Traits</a></h2><ul class="item-table"><li><div class="item-name"><a class="trait" href="trait.Collapsible.html" title="trait recursion::Collapsible">Collapsible</a></div><div class="desc docblock-short">The ability to recursively collapse some type into some output type, frame by frame.</div></li><li><div class="item-name"><a class="trait" href="trait.CollapsibleExt.html" title="trait recursion::CollapsibleExt">CollapsibleExt</a></div></li><li><div class="item-name"><a class="trait" href="trait.Expandable.html" title="trait recursion::Expandable">Expandable</a></div><div class="desc docblock-short">The ability to recursively expand a seed to construct a value of this type, frame by frame.</div></li><li><div class="item-name"><a class="trait" href="trait.ExpandableExt.html" title="trait recursion::ExpandableExt">ExpandableExt</a></div></li><li><div class="item-name"><a class="trait" href="trait.MappableFrame.html" title="trait recursion::MappableFrame">MappableFrame</a></div><div class="desc docblock-short">A single ‘frame’ containing values that can be mapped over via <code>map_frame</code>.</div></li></ul></section></div></main></body></html>
