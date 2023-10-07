@@ -8,7 +8,7 @@ iteration from the _logic_ of iteration, allowing us to go from this:
 ```rust
 # let prices = vec![1, 2, 3];
 let mut n = 0;
-while n <  prices.len() {
+while n < prices.len() {
     print!("{}", prices[n]);
     n += 1;
 }
@@ -41,7 +41,9 @@ pub enum Expr {
 ```
 
 For working with this `Expr` type we'll define a _frame_ type `ExprFrame<A>`.
-It's exactly the same as Expr, except the recursive self-reference `Box<Self>` is replaced with `A`
+It's exactly the same as `Expr`, except the recursive self-reference `Box<Self>` is replaced with `A`.
+This may be a bit confusing at first, but this idiom unlocks a lot of potential (expressiveness, stack safety, etc).
+You can think of `ExprFrame<A>` as representing a single _stack frame_ in a recursive algorithm.
 
 ```rust
 pub enum ExprFrame<A> {
@@ -120,9 +122,13 @@ let expr = multiply(subtract(literal(1), literal(2)), literal(3));
 assert_eq!(eval(&expr), -3);
 ```
 
+Here's a GIF visualizing the operation of `collapse_frames`:
+
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/eval.gif">
+
 # Fallible functions
 
-At this point, you may have noticed that I've ommited division, which is a fallible operation
+At this point, you may have noticed that We've ommited division, which is a fallible operation
 because division by 0 is undefined. Many real world algorithms also have to handle failible operations,
 such as this. That's why this crate also provides tools for collapsing and expanding recursive data
 structures using fallible functions, like (in this case) `ExprFrame<i64> -> Result<i64, Err>`.
@@ -201,6 +207,14 @@ let invalid_expr = divide(literal(2), literal(0));
 assert_eq!(try_eval(&valid_expr), Ok(-3));
 assert_eq!(try_eval(&invalid_expr), Err("cannot divide by zero"));
 ```
+
+Here's a GIF visualizing the operation of `try_collapse_frames` for `valid_expr`:
+
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_valid.gif">
+
+And here's a GIF visualizing the operation of `try_collapse_frames` for `invalid_expr`:
+
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_invalid.gif">
 
 # Expanding an Expr from a seed value
 
@@ -282,8 +296,13 @@ assert_eq!(expected, build_expr(2));
 
 ```
 
+Here's a GIF visualizing the operation of `expand_frames``:
 
-# Miscel'aneous errata
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/build_expr.gif">
+
+# Miscellaneous errata
+
+All GIFs in this documentation were generated via tooling in my `recursion-visualize` crate, via `examples/expr.rs`.
 
 If you're familiar with Haskell, you may have noticed that this crate makes heavy use of recursion schemes idioms.
 I've named the traits used with an eye towards readability for users unfamiliar with those idioms, but feel free to
