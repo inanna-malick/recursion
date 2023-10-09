@@ -53,7 +53,7 @@ I’ll elide that for now, but you can read the documentation for the above trai
 <span class="kw">let </span>expr = multiply(subtract(literal(<span class="number">1</span>), literal(<span class="number">2</span>)), literal(<span class="number">3</span>));
 <span class="macro">assert_eq!</span>(eval(<span class="kw-2">&amp;</span>expr), -<span class="number">3</span>);</code></pre></div>
 <p>Here’s a GIF visualizing the operation of <code>collapse_frames</code>:</p>
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/eval.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/eval.gif" width="600">
 <h2 id="fallible-functions"><a href="#fallible-functions">Fallible functions</a></h2>
 <p>At this point, you may have noticed that We’ve ommited division, which is a fallible operation
 because division by 0 is undefined. Many real world algorithms also have to handle failible operations,
@@ -78,9 +78,9 @@ structures using fallible functions, like (in this case) <code>ExprFrame&lt;i64&
 <span class="macro">assert_eq!</span>(try_eval(<span class="kw-2">&amp;</span>valid_expr), <span class="prelude-val">Ok</span>(-<span class="number">3</span>));
 <span class="macro">assert_eq!</span>(try_eval(<span class="kw-2">&amp;</span>invalid_expr), <span class="prelude-val">Err</span>(<span class="string">&quot;cannot divide by zero&quot;</span>));</code></pre></div>
 <p>Here’s a GIF visualizing the operation of <code>try_collapse_frames</code> for <code>valid_expr</code>:</p>
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_valid.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/try_eval_valid.gif" width="600">
 <p>And here’s a GIF visualizing the operation of <code>try_collapse_frames</code> for <code>invalid_expr</code>:</p>
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_invalid.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/try_eval_invalid.gif" width="600">
 <h2 id="expanding-an-expr-from-a-seed-value"><a href="#expanding-an-expr-from-a-seed-value">Expanding an Expr from a seed value</a></h2>
 <p>Here’s an example showing how to expand a simple <code>Expr</code> from a seed value</p>
 
@@ -99,7 +99,7 @@ structures using fallible functions, like (in this case) <code>ExprFrame&lt;i64&
 <span class="macro">assert_eq!</span>(expected, build_expr(<span class="number">2</span>));
 </code></pre></div>
 <p>Here’s a GIF visualizing the operation of `expand_frames``:</p>
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/build_expr.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/build_expr.gif" width="600">
 <h2 id="miscellaneous-errata"><a href="#miscellaneous-errata">Miscellaneous errata</a></h2>
 <p>All GIFs in this documentation were generated via tooling in my <code>recursion-visualize</code> crate, via <code>examples/expr.rs</code>.</p>
 <p>If you’re familiar with Haskell, you may have noticed that this crate makes heavy use of recursion schemes idioms.
