@@ -124,7 +124,7 @@ assert_eq!(eval(&expr), -3);
 
 Here's a GIF visualizing the operation of `collapse_frames`:
 
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/a784eee2e17b6eb9404674007a29e48379d76bd1/recursion/img_assets/eval.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/eval.gif" width="600">
 
 # Fallible functions
 
@@ -210,11 +210,11 @@ assert_eq!(try_eval(&invalid_expr), Err("cannot divide by zero"));
 
 Here's a GIF visualizing the operation of `try_collapse_frames` for `valid_expr`:
 
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_valid.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/try_eval_valid.gif" width="600">
 
 And here's a GIF visualizing the operation of `try_collapse_frames` for `invalid_expr`:
 
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/try_eval_invalid.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/try_eval_invalid.gif" width="600">
 
 # Expanding an Expr from a seed value
 
@@ -298,7 +298,7 @@ assert_eq!(expected, build_expr(2));
 
 Here's a GIF visualizing the operation of `expand_frames``:
 
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/build_expr.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/84806b5ce8a9e12ef7d1664d031e215922bfbaa6/recursion/img_assets/build_expr.gif" width="600">
 
 # Miscellaneous errata
 
