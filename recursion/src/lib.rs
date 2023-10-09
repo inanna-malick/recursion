@@ -124,7 +124,7 @@ assert_eq!(eval(&expr), -3);
 
 Here's a GIF visualizing the operation of `collapse_frames`:
 
-<img src="https://raw.githubusercontent.com/inanna-malick/recursion/819137a6e6d5667c0b431e176320ed315d4a7aa5/recursion/img_assets/eval.gif">
+<img src="https://raw.githubusercontent.com/inanna-malick/recursion/a784eee2e17b6eb9404674007a29e48379d76bd1/recursion/img_assets/eval.gif">
 
 # Fallible functions
 

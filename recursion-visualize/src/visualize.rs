@@ -455,11 +455,11 @@ static TEMPLATE_BEFORE: &'static str = r###"
 }
 
 body {
-  background-color: skyblue;
+  background-color: lightcyan;
 } 
 
 .infocard {
-  background-color: aliceblue;
+  background-color: white;
   border-style: solid;
   width: 500px;
   padding: 10px;
