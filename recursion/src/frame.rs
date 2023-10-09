@@ -69,8 +69,7 @@ pub trait MappableFrame {
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 
-/// [`PartiallyApplied`] is an uninhabited enum - a type that cannot exist at runtime.
-/// It is used to defined MappableFrame instances for partially-applied types.
+/// "An uninhabited type used to define [`MappableFrame`] instances for partially-applied types."
 ///
 /// For example: the MappableFrame instance for `MyFrame<A>` cannot be written over the
 /// partially-applied type `MyFrame`, so instead we write it over `MyFrame<PartiallyApplied>`

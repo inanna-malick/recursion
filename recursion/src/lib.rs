@@ -1,9 +1,10 @@
 /*!
 
-This crate provides tools for working with recursive data structures in a concise, stack safe, 
-and performant manner. It accomplishes that by separating the _machinery_
-of recursion from the _logic_ of recursion. This is similar to how iterators separate the _machinery_ of
-iteration from the _logic_ of iteration, allowing us to go from this:
+Tools for working with recursive data structures in a concise, stack safe, and performant manner.
+
+
+This crate provides abstractions for separating the _machinery_ of recursion from the _logic_ of recursion.
+This is similar to how iterators separate the _machinery_ of iteration from the _logic_ of iteration, allowing us to go from this:
 
 ```rust
 # let prices = vec![1, 2, 3];
