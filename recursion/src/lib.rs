@@ -129,7 +129,7 @@ Here's a GIF visualizing the operation of `collapse_frames`:
 
 # Fallible functions
 
-At this point, you may have noticed that We've ommited division, which is a fallible operation
+At this point, you may have noticed that we've ommited division, which is a fallible operation
 because division by 0 is undefined. Many real world algorithms also have to handle failible operations,
 such as this. That's why this crate also provides tools for collapsing and expanding recursive data
 structures using fallible functions, like (in this case) `ExprFrame<i64> -> Result<i64, Err>`.
