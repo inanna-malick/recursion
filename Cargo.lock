@@ -900,7 +900,6 @@ dependencies = [
 name = "recursion-visualize"
 version = "0.5.0"
 dependencies = [
- "futures",
  "json",
  "recursion",
  "serde",
