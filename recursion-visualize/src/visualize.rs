@@ -2,36 +2,125 @@ use std::fmt::Display;
 
 use recursion::{Collapsible, Expandable, MappableFrame};
 
-/// The ability to collapse a value into some output type, frame by frame
 pub trait CollapsibleVizExt: Collapsible
 where
     Self: Sized + Display,
     <Self::FrameToken as MappableFrame>::Frame<()>: Display,
 {
+    type Viz: VizOut;
+
+
     fn collapse_frames_v<Out>(
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
-    ) -> (Out, Viz)
+    ) -> (Out, Self::Viz)
     where
         Out: Display;
 
     fn try_collapse_frames_v<Out, E: Display>(
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Result<Out, E>,
-    ) -> (Result<Out, E>, Viz)
+    ) -> (Result<Out, E>, Self::Viz)
     where
         Out: Display;
 }
 
+
+pub trait ExpandableVizExt: Expandable
+where
+    Self: Sized + Display,
+    <Self::FrameToken as MappableFrame>::Frame<()>: Display,
+{
+    // '()' if disabled
+    type Viz: VizOut;
+
+    fn expand_frames_v<In>(
+        input: In,
+        expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
+    ) -> (Self, Self::Viz)
+    where
+        In: Display;
+}
+
+
+pub trait VizOut {
+    type Config;
+
+    fn label(self, info_header: String, info_txt: String) -> Self;
+
+    fn fuse(self, next: Self, info_header: String, info_txt: String) -> Self;
+
+    fn finish(self, cfg: Self::Config);
+}
+
+
+#[cfg(not(enabled))]
 impl<X: Collapsible> CollapsibleVizExt for X
 where
     Self: Sized + Display,
     <Self::FrameToken as MappableFrame>::Frame<()>: Display,
 {
+
+    type Viz = ();
+
     fn collapse_frames_v<Out>(
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
-    ) -> (Out, Viz)
+    ) -> (Out, Self::Viz)
+    where
+        Out: Display,
+    {
+        let res = recursion::frame::expand_and_collapse::<Self::FrameToken, Self, Out>(self, Self::into_frame, collapse_frame);
+        (res, ())
+    }
+
+    fn try_collapse_frames_v<Out, E: Display>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Result<Out, E>,
+    ) -> (Result<Out, E>, Self::Viz)
+    where
+        Out: Display,
+    {
+        let res = recursion::frame::try_expand_and_collapse::<Self::FrameToken, Self, Out, E>(
+            self,
+            |x| Ok(Self::into_frame(x)),
+            collapse_frame,
+        );
+
+        (res, ())
+    }
+}
+
+impl VizOut for () {
+    type Config = ();
+
+    fn label(self, info_header: String, info_txt: String) -> Self {
+        ()
+    }
+
+    fn fuse(self, next: Self, info_header: String, info_txt: String) -> Self {
+        ()
+    }
+
+    fn finish(self, cfg: Self::Config) {
+        ()
+    }
+}
+
+
+#[cfg(enabled)]
+impl<X: Collapsible> CollapsibleVizExt for X
+where
+    Self: Sized + Display,
+    <Self::FrameToken as MappableFrame>::Frame<()>: Display,
+{
+
+    type Viz = Viz;
+
+    fn collapse_frames_v<Out>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Out,
+    ) -> (Out, Self::Viz)
     where
         Out: Display,
     {
@@ -41,7 +130,7 @@ where
     fn try_collapse_frames_v<Out, E: Display>(
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Result<Out, E>,
-    ) -> (Result<Out, E>, Viz)
+    ) -> (Result<Out, E>, Self::Viz)
     where
         Out: Display,
     {
@@ -53,24 +142,14 @@ where
     }
 }
 
-pub trait ExpandableVizExt: Expandable
-where
-    Self: Sized + Display,
-    <Self::FrameToken as MappableFrame>::Frame<()>: Display,
-{
-    fn expand_frames_v<In>(
-        input: In,
-        expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
-    ) -> (Self, Viz)
-    where
-        In: Display;
-}
-
+#[cfg(enabled)]
 impl<X: Expandable> ExpandableVizExt for X
 where
     Self: Sized + Display,
     <Self::FrameToken as MappableFrame>::Frame<()>: Display,
 {
+    type Viz = Viz;
+
     fn expand_frames_v<In>(
         input: In,
         expand_frame: impl FnMut(In) -> <Self::FrameToken as MappableFrame>::Frame<In>,
@@ -84,6 +163,7 @@ where
 
 type VizNodeId = u32;
 
+#[cfg(enabled)]
 #[derive(Clone)]
 pub enum VizAction {
     // expand a seed to a node, with new child seeds if any
@@ -104,22 +184,7 @@ pub enum VizAction {
     },
 }
 
-// impl VizAction {
-//     pub fn target_id(&self) -> VizNodeId {
-//         match self {
-//             VizAction::ExpandSeed { target_id, .. } => *target_id,
-//             VizAction::CollapseNode { target_id, ..} => *target_id,
-//         }
-//     }
-
-//     pub fn increment_id(&mut self, x: u32) {
-//         match self {
-//             VizAction::ExpandSeed { target_id, .. } => *target_id += x,
-//             VizAction::CollapseNode { target_id, ..} => *target_id += x,
-//         }
-//     }
-// }
-
+#[cfg(enabled)]
 #[derive(Clone)]
 pub struct Viz {
     seed_txt: String,
@@ -127,8 +192,11 @@ pub struct Viz {
     actions: Vec<VizAction>,
 }
 
-impl Viz {
-    pub fn label(mut self, info_header: String, info_txt: String) -> Self {
+#[cfg(enabled)]
+impl VizOut for Viz {
+    type Config = String;
+
+    fn label(mut self, info_header: String, info_txt: String) -> Self {
         let mut actions = vec![VizAction::InfoCard {
             info_header,
             info_txt,
@@ -139,7 +207,7 @@ impl Viz {
         self
     }
 
-    pub fn fuse(self, next: Self, info_header: String, info_txt: String) -> Self {
+    fn fuse(self, next: Self, info_header: String, info_txt: String) -> Self {
         let mut actions = self.actions;
         actions.push(VizAction::InfoCard {
             info_txt,
@@ -154,15 +222,16 @@ impl Viz {
         }
     }
 
-    pub fn write(self, path: String) {
+    fn finish(self, cfg: Self::Config) {
         let to_write = serialize_html(self).unwrap();
 
-        println!("write to: {:?}", path);
+        println!("write to path: {:?}", cfg);
 
-        std::fs::write(path, to_write).unwrap();
+        std::fs::write(cfg, to_write).unwrap();
     }
 }
 
+#[cfg(enabled)]
 // this is hilariously jamky and I can do better, but this is an experimental feature so I will not prioritize doing so.
 pub fn serialize_html(v: Viz) -> serde_json::Result<String> {
     let mut out = String::new();
@@ -173,6 +242,7 @@ pub fn serialize_html(v: Viz) -> serde_json::Result<String> {
     Ok(out)
 }
 
+#[cfg(enabled)]
 pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
     use serde_json::value::Value;
     let actions: Vec<Value> = v
@@ -243,6 +313,7 @@ pub fn serialize_json(v: Viz) -> serde_json::Result<String> {
     serde_json::to_string(&viz_js)
 }
 
+#[cfg(enabled)]
 pub fn try_expand_and_collapse_v<F, Seed, Out, E>(
     seed: Seed,
     mut coalg: impl FnMut(Seed) -> Result<F::Frame<Seed>, E>,
@@ -355,6 +426,7 @@ where
     )
 }
 
+#[cfg(enabled)]
 // use std::fmt::Debug;
 // TODO: split out root seed case to separate field on return obj, not needed as part of enum!
 pub fn expand_and_collapse_v<F, Seed, Out>(
@@ -437,6 +509,7 @@ where
     )
 }
 
+#[cfg(enabled)]
 //TODO/FIXME: something better than this. that said, this is in experimental so :shrug_emoji:
 static TEMPLATE_BEFORE: &'static str = r###"
 <!DOCTYPE html>

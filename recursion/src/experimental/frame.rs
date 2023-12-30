@@ -11,7 +11,9 @@ pub(crate) type Frame<F, X> = <F as MappableFrame>::Frame<X>;
 
 // mostly just used for Compact (defined over frame, needs to collapse_ref via ref frame)
 pub trait MappableFrameRef: MappableFrame {
-    type RefFrameToken<'a>: MappableFrame;
+    type RefFrameToken<'a>: MappableFrame
+    where
+        Self: 'a;
 
     fn as_ref<X>(input: &Self::Frame<X>) -> <Self::RefFrameToken<'_> as MappableFrame>::Frame<&X>;
 }

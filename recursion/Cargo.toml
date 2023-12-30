@@ -1,6 +1,6 @@
 [package]
 name = "recursion"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 description = "cache-aware stack safe recursion"
 license = "MIT OR Apache-2.0"
@@ -13,3 +13,4 @@ experimental = ["tokio", "futures"]
 [dependencies]
 futures = {version = "0.3", optional = true}
 tokio = {version = "1.19", features = ["rt", "rt-multi-thread", "fs", "macros", "io-util", "sync"], optional = true}
+bumpalo = {version="3.14", features = ["boxed"]}

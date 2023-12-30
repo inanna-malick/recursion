@@ -311,7 +311,7 @@ read [`MappableFrame`] as `Functor` and [`Expandable`]/[`Collapsible`] as `Corec
 familiar with these idioms, there's a great blog post series [here](https://blog.sumtypeofway.com/posts/introduction-to-recursion-schemes.html) that explains the various concepts involved.
 
 */
-mod frame;
+pub mod frame;
 mod recursive;
 
 #[cfg(feature = "experimental")]
