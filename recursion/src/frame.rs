@@ -77,10 +77,14 @@ pub trait MappableFrameRef {
     /// the frame type that is mapped over by `map_frame`
     type Frame<'a, X>
     where
-        Self: 'a;
+        Self: 'a,
+        X: 'a;
 
     /// Apply some function `f` to each element inside a frame
-    fn map_frame<'a, A, B>(input: Self::Frame<'a, A>, f: impl FnMut(A) -> B) -> Self::Frame<'a, B>;
+    fn map_frame<'a, A: 'a, B: 'a>(
+        input: Self::Frame<'a, A>,
+        f: impl FnMut(A) -> B,
+    ) -> Self::Frame<'a, B>;
 }
 
 /// "An uninhabited type used to define [`MappableFrame`] instances for partially-applied types."
@@ -215,63 +219,41 @@ struct Generator<F: MappableFrame, Seed, Gen> {
     generate: Box<dyn FnMut(&F::Frame<Seed>) -> Gen>,
 }
 
-struct GeneratorRef<'a, F: MappableFrameRef + 'a, Seed, Gen> {
-    stack: Vec<Seed>,
-    expand_frame: Box<dyn FnMut(Seed) -> F::Frame<'a, Seed>>,
-    generate: Box<dyn FnMut(&F::Frame<'a, Seed>) -> Gen>,
-}
+// struct GeneratorRef<'a, F: MappableFrameRef + 'a, Seed: 'a, Gen> {
+//     stack: Vec<Seed>,
+//     // return type of expand is &'d b/c of asref compat, feels weird? idk lol
+//     expand_frame: Box<dyn FnMut(Seed) -> F::Frame<'a, Seed>>,
+//     generate: Box<dyn FnMut(&F::Frame<'a, Seed>) -> Gen>,
+// }
 
-impl<'a, F: MappableFrameRef + 'a, G> GeneratorRef<'a, F, &'a Fix<Wrapper<F>>, G>
-where
-    <Wrapper::<F> as MappableFrame>::Frame<Fix<Wrapper<F>>>: 'static,
-    F: 'static // this is just a token, so probably fine
-{
-    pub fn new(
-        seed: &'a Fix<Wrapper<F>>,
-        generate: Box<dyn FnMut(&F::Frame<'a, &'a Fix<Wrapper<F>>>) -> G>,
-    ) -> Self {
-        Self {
-            stack: vec![seed],
-            expand_frame: Box::new(|s| todo!()),
-            generate,
-        }
-    }
-}
+// // TODO: having 'F' being the token for both frame tyes isn't working/helping
+// // TODO: have F & FRef as type signature,  
+// impl<'a, F: MappableFrame, FRef: MappableFrameRef, G> GeneratorRef<'a, FRef, &'a Fix<F>, G>
+// where
+//     &'a F::Frame<Fix<F>>: Into<FRef::Frame<'a, &'a Fix<F>>>,
+//     // TODO: concrete relation between two types of frames via own typeclass to model 'asref' relation
+//     //       instead of shoehorning in via asref
+//     // TODO: AsRef is fundamentally broken b/c it returns a borrowed value... so use from lol
+// {
+//     pub fn new(
+//         seed: &'a Fix<F>,
+//         generate: Box<dyn FnMut(&FRef::Frame<'a, &'a Fix<F>>) -> G>,
+//     ) -> Self {
+//         Self {
+//             stack: vec![&seed],
+//             expand_frame: Box::new(|s| {
+//                 // let x: &<F as MappableFrameRef>::Frame<'a, &'a Fix<F>> = (*s.0).into();
+//                 // // <F as MappableFrame>::Frame::<Fix<F>>::as_ref(s.0);
 
-
-// downcast to non-ref impl via pinning type param as static. will not always be viable I guess???
-struct Wrapper<X>(X);
-
-impl<Z: MappableFrameRef> MappableFrame for Wrapper<Z> where Self: 'static {
-    type Frame<X> = <Z as MappableFrameRef>::Frame<'static, X>;
-
-    fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B> {
-        <Z as MappableFrameRef>::map_frame(input, f)
-    }
-}
-
-// impl<V,X>  AsRef<Tree<&V, &X>> for Tree<V, X> {
-//     fn as_ref(&self) -> &Tree<&V, &X> {
-//         Tree {
-
+//                 // x
+//                 s.0.as_ref().into()
+//             }),
+//             generate,
 //         }
 //     }
 // }
 
-
 impl<F: MappableFrame, G> Generator<F, Fix<F>, G> {
-    // pub fn new(
-    //     seed: S,
-    //     expand_frame: Box<dyn FnMut(S) -> F::Frame<S>>,
-    //     generate: Box<dyn FnMut(&F::Frame<S>) -> G>,
-    // ) -> Self {
-    //     Self {
-    //         stack: vec![seed],
-    //         expand_frame,
-    //         generate,
-    //     }
-    // }
-
     pub fn new(seed: Fix<F>, generate: Box<dyn FnMut(&F::Frame<Fix<F>>) -> G>) -> Self {
         Self {
             stack: vec![seed],
@@ -296,20 +278,21 @@ impl<F: MappableFrame, S, G> Iterator for Generator<F, S, G> {
     }
 }
 
-impl<'a, F: MappableFrameRef, S, G> Iterator for GeneratorRef<'a, F, S, G> {
-    type Item = G;
+// impl<'a, F: MappableFrameRef, S, G> Iterator for GeneratorRef<'a, F, S, G> {
+//     type Item = G;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(seed) = self.stack.pop() {
-            let frame = (self.expand_frame)(seed);
-            let gen = (self.generate)(&frame);
-            F::map_frame(frame, |s| self.stack.push(s));
-            Some(gen)
-        } else {
-            None
-        }
-    }
-}
+//     fn next(&mut self) -> Option<Self::Item> {
+//         if let Some(seed) = self.stack.pop() {
+//             let frame = (self.expand_frame)(seed);
+//             let gen = (self.generate)(&frame);
+//             // TODO: decide if ref map frame gives internal value _or_ just a ref to it
+//             F::map_frame(frame, |s| self.stack.push(s));
+//             Some(gen)
+//         } else {
+//             None
+//         }
+//     }
+// }
 
 #[derive(Clone)]
 // duplicate
@@ -357,30 +340,51 @@ impl<V> MappableFrame for Tree<V, PartiallyApplied> {
     }
 }
 
-impl<V> MappableFrameRef for Tree<V, PartiallyApplied> {
-    type Frame<'a, X> = Tree<&'a V, X> where Self: 'a;
+// impl<V> MappableFrameRef for Tree<V, PartiallyApplied> {
+//     type Frame<'a, X> = Tree<&'a V, X>
+//     where
+//         Self: 'a,
+//         X: 'a;
 
-    fn map_frame<'a, A, B>(input: Self::Frame<'a, A>, f: impl FnMut(A) -> B) -> Self::Frame<'a, B> {
-        todo!()
-    }
-}
+//     fn map_frame<'a, A: 'a, B: 'a>(
+//         input: Self::Frame<'a, A>,
+//         f: impl FnMut(A) -> B,
+//     ) -> Self::Frame<'a, B> {
+//         Tree {
+//             elems: input.elems.into_iter().map(f).collect(),
+//             v: input.v,
+//         }
+//     }
+// }
 
 #[test]
 fn test_generator() {
     let t = Tree::new(
-        "a.0",
+        "a.0".to_string(),
         vec![
-            Tree::new("b.1", vec![Tree::new("c.2", Vec::new())]),
-            Tree::new("d.1", vec![Tree::new("e.2", Vec::new())]),
+            Tree::new("b.1".to_string(), vec![Tree::new("c.2".to_string(), Vec::new())]),
+            Tree::new("d.1".to_string(), vec![Tree::new("e.2".to_string(), Vec::new())]),
         ],
     );
 
-    let iter_ref = GeneratorRef::new(
-        &t,
-        Box::new(|n| if n.v.contains('b') { Some(n.v) } else { None }),
+    // let iter_ref = GeneratorRef::<_, Tree<V, PartiallyApplied>, _, _>::new(
+    //     &t,
+    //     Box::new(|n: &Tree<&String, _>| if n.v.contains('b') { Some(*n.v) } else { None }),
+    // );
+
+    // TODO: as_ref impl
+    let iter = Generator::new(
+        t.clone(),
+        Box::new(|n| {
+            if n.v.contains('b') {
+                Some(n.v) 
+            } else {
+                None
+            }
+        }),
     );
 
-    let find_results = iter_ref.filter_map(|x| x).collect();
+    let find_results: Vec<_> = iter.filter_map(|x| x).collect();
 
     assert_eq!(find_results, vec!["b.1"]);
 
