@@ -209,7 +209,7 @@ NOTE: HOWEVER! I DO NEED THIS TO PROPERLY CLONE A FIX,
 struct Generator<F: MappableFrame, Seed, Gen> {
     stack: Vec<Seed>,
     expand_frame: Box<dyn FnMut(Seed) -> F::Frame<Seed>>,
-    generate: Box<dyn FnMut(&F::Frame<Seed>) -> Gen>,
+    generate: Box<dyn for<'z> FnMut(F::Frame<&'z Seed>) -> Gen>,
 }
 
 struct GeneratorRef<'a, F: MappableFrameRefExt + 'a, Gen> {
@@ -230,7 +230,7 @@ impl<'a, F: MappableFrameRefExt, G> GeneratorRef<'a, F, G> {
 }
 
 impl<F: MappableFrame, G> Generator<F, Fix<F>, G> {
-    pub fn new(seed: Fix<F>, generate: Box<dyn FnMut(&F::Frame<Fix<F>>) -> G>) -> Self {
+    pub fn new(seed: Fix<F>, generate: Box<dyn FnMut(F::Frame<&Fix<F>>) -> G>) -> Self {
         Self {
             stack: vec![seed],
             expand_frame: Box::new(|s| *s.0),
@@ -245,8 +245,16 @@ impl<F: MappableFrame, S, G> Iterator for Generator<F, S, G> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(seed) = self.stack.pop() {
             let frame = (self.expand_frame)(seed);
-            let gen = (self.generate)(&frame);
-            F::map_frame(frame, |s| self.stack.push(s));
+            let mut x = Vec::new();
+            let frame = F::map_frame(frame, |s| {
+                let idx = x.len();
+                x.push(s);
+                idx
+            });
+            //double-map b/c prev map borrows 'x' as mutable
+            let frame = F::map_frame(frame, |idx| &x[idx]);
+            let gen = (self.generate)(frame);
+            self.stack.extend(x.into_iter());
             Some(gen)
         } else {
             None
@@ -280,7 +288,7 @@ impl<F: MappableFrame> Fix<F> {
 
     pub fn into_expand_iter<G>(
         self,
-        generate: impl FnMut(&F::Frame<Self>) -> G + 'static,
+        generate: impl for<'z> FnMut(F::Frame<&'z Self>) -> G + 'static,
     ) -> Generator<F, Self, G> {
         Generator {
             stack: vec![self],
@@ -298,10 +306,16 @@ impl<F: MappableFrameRefExt> Fix<F> {
         GeneratorRef::new(self, Box::new(generate))
     }
 }
-// impl<F: MappableFrame, G> Generator<F, Fix<F>, G> {
-// }
 
-// pub struct FixRef<'a, F: MappableFrameRef + 'a>(pub &'a F::Frame<'a, FixRef<'a, F>>);
+// impl<F: MappableFrame> IntoIterator for Fix<F> {
+//     type Item = F::Frame<&'a Self>;
+
+//     type IntoIter;
+
+//     fn into_iter(self) -> Self::IntoIter {
+//         todo!()
+//     }
+// }
 
 impl<V: core::fmt::Debug> core::fmt::Debug for Fix<Tree<V, PartiallyApplied>> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -361,17 +375,23 @@ fn test_generator() {
         ],
     );
 
-    let find_results: Vec<_> = t
-        .expand_iter(|n| if n.v.contains('b') { Some(&n.v) } else { None })
+    let find_result: Option<&str> = t
+        .expand_iter(|n| {
+            if n.v.contains('b') {
+                Some(n.v.as_str())
+            } else {
+                None
+            }
+        })
         .filter_map(|x| x)
-        .collect();
+        .next();
 
-    assert_eq!(find_results, vec!["b.1"]);
+    assert_eq!(find_result, Some("b.1"));
 
-    let elems: Vec<_> = t
+    let elems: Vec<String> = t
         .into_expand_iter(|n| {
             println!("visit: {:?}", n);
-            n.v.clone() // TODO: clone here is JANK, should be take-careable? I think.
+            n.v
         })
         .collect();
 
