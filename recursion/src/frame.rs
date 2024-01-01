@@ -73,18 +73,11 @@ pub trait MappableFrame {
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B>;
 }
 
-pub trait MappableFrameRef {
-    /// the frame type that is mapped over by `map_frame`
-    type Frame<'a, X>
-    where
-        Self: 'a,
-        X: 'a;
+pub trait MappableFrameRefExt: MappableFrame {
+    type I<'a, A: 'a>: Iterator<Item = &'a A>;
 
-    /// Apply some function `f` to each element inside a frame
-    fn map_frame<'a, A: 'a, B: 'a>(
-        input: Self::Frame<'a, A>,
-        f: impl FnMut(A) -> B,
-    ) -> Self::Frame<'a, B>;
+    // todo idk rename or whatever. may expand later.
+    fn visit_subnodes<'a, A: 'a>(input: &'a Self::Frame<A>) -> Self::I<'a, A>;
 }
 
 /// "An uninhabited type used to define [`MappableFrame`] instances for partially-applied types."
@@ -219,39 +212,22 @@ struct Generator<F: MappableFrame, Seed, Gen> {
     generate: Box<dyn FnMut(&F::Frame<Seed>) -> Gen>,
 }
 
-// struct GeneratorRef<'a, F: MappableFrameRef + 'a, Seed: 'a, Gen> {
-//     stack: Vec<Seed>,
-//     // return type of expand is &'d b/c of asref compat, feels weird? idk lol
-//     expand_frame: Box<dyn FnMut(Seed) -> F::Frame<'a, Seed>>,
-//     generate: Box<dyn FnMut(&F::Frame<'a, Seed>) -> Gen>,
-// }
+struct GeneratorRef<'a, F: MappableFrameRefExt + 'a, Gen> {
+    stack: Vec<&'a Fix<F>>,
+    generate: Box<dyn FnMut(&'a <F as MappableFrame>::Frame<Fix<F>>) -> Gen>,
+}
 
-// // TODO: having 'F' being the token for both frame tyes isn't working/helping
-// // TODO: have F & FRef as type signature,  
-// impl<'a, F: MappableFrame, FRef: MappableFrameRef, G> GeneratorRef<'a, FRef, &'a Fix<F>, G>
-// where
-//     &'a F::Frame<Fix<F>>: Into<FRef::Frame<'a, &'a Fix<F>>>,
-//     // TODO: concrete relation between two types of frames via own typeclass to model 'asref' relation
-//     //       instead of shoehorning in via asref
-//     // TODO: AsRef is fundamentally broken b/c it returns a borrowed value... so use from lol
-// {
-//     pub fn new(
-//         seed: &'a Fix<F>,
-//         generate: Box<dyn FnMut(&FRef::Frame<'a, &'a Fix<F>>) -> G>,
-//     ) -> Self {
-//         Self {
-//             stack: vec![&seed],
-//             expand_frame: Box::new(|s| {
-//                 // let x: &<F as MappableFrameRef>::Frame<'a, &'a Fix<F>> = (*s.0).into();
-//                 // // <F as MappableFrame>::Frame::<Fix<F>>::as_ref(s.0);
-
-//                 // x
-//                 s.0.as_ref().into()
-//             }),
-//             generate,
-//         }
-//     }
-// }
+impl<'a, F: MappableFrameRefExt, G> GeneratorRef<'a, F, G> {
+    pub fn new(
+        seed: &'a Fix<F>,
+        generate: Box<dyn FnMut(&'a <F as MappableFrame>::Frame<Fix<F>>) -> G>,
+    ) -> Self {
+        Self {
+            stack: vec![&seed],
+            generate,
+        }
+    }
+}
 
 impl<F: MappableFrame, G> Generator<F, Fix<F>, G> {
     pub fn new(seed: Fix<F>, generate: Box<dyn FnMut(&F::Frame<Fix<F>>) -> G>) -> Self {
@@ -278,21 +254,20 @@ impl<F: MappableFrame, S, G> Iterator for Generator<F, S, G> {
     }
 }
 
-// impl<'a, F: MappableFrameRef, S, G> Iterator for GeneratorRef<'a, F, S, G> {
-//     type Item = G;
+impl<'a, F: MappableFrameRefExt, G> Iterator for GeneratorRef<'a, F, G> {
+    type Item = G;
 
-//     fn next(&mut self) -> Option<Self::Item> {
-//         if let Some(seed) = self.stack.pop() {
-//             let frame = (self.expand_frame)(seed);
-//             let gen = (self.generate)(&frame);
-//             // TODO: decide if ref map frame gives internal value _or_ just a ref to it
-//             F::map_frame(frame, |s| self.stack.push(s));
-//             Some(gen)
-//         } else {
-//             None
-//         }
-//     }
-// }
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(Fix(frame)) = self.stack.pop() {
+            let gen = (self.generate)(frame.as_ref());
+            // TODO: decide if ref map frame gives internal value _or_ just a ref to it
+            self.stack.extend(F::visit_subnodes(frame));
+            Some(gen)
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Clone)]
 // duplicate
@@ -302,7 +277,29 @@ impl<F: MappableFrame> Fix<F> {
     pub fn new(x: F::Frame<Fix<F>>) -> Self {
         Self(Box::new(x))
     }
+
+    pub fn into_expand_iter<G>(
+        self,
+        generate: impl FnMut(&F::Frame<Self>) -> G + 'static,
+    ) -> Generator<F, Self, G> {
+        Generator {
+            stack: vec![self],
+            expand_frame: Box::new(|s| *s.0),
+            generate: Box::new(generate),
+        }
+    }
 }
+
+impl<F: MappableFrameRefExt> Fix<F> {
+    pub fn expand_iter<'a, G>(
+        self: &'a Self,
+        generate: impl FnMut(&'a <F as MappableFrame>::Frame<Fix<F>>) -> G + 'static,
+    ) -> GeneratorRef<'a, F, G> {
+        GeneratorRef::new(self, Box::new(generate))
+    }
+}
+// impl<F: MappableFrame, G> Generator<F, Fix<F>, G> {
+// }
 
 // pub struct FixRef<'a, F: MappableFrameRef + 'a>(pub &'a F::Frame<'a, FixRef<'a, F>>);
 
@@ -340,101 +337,43 @@ impl<V> MappableFrame for Tree<V, PartiallyApplied> {
     }
 }
 
-// impl<V> MappableFrameRef for Tree<V, PartiallyApplied> {
-//     type Frame<'a, X> = Tree<&'a V, X>
-//     where
-//         Self: 'a,
-//         X: 'a;
+impl<V> MappableFrameRefExt for Tree<V, PartiallyApplied> {
+    type I<'a, A: 'a> = core::slice::Iter<'a, A>;
 
-//     fn map_frame<'a, A: 'a, B: 'a>(
-//         input: Self::Frame<'a, A>,
-//         f: impl FnMut(A) -> B,
-//     ) -> Self::Frame<'a, B> {
-//         Tree {
-//             elems: input.elems.into_iter().map(f).collect(),
-//             v: input.v,
-//         }
-//     }
-// }
+    fn visit_subnodes<'a, A: 'a>(input: &'a Self::Frame<A>) -> Self::I<'a, A> {
+        input.elems.iter()
+    }
+}
 
 #[test]
 fn test_generator() {
     let t = Tree::new(
         "a.0".to_string(),
         vec![
-            Tree::new("b.1".to_string(), vec![Tree::new("c.2".to_string(), Vec::new())]),
-            Tree::new("d.1".to_string(), vec![Tree::new("e.2".to_string(), Vec::new())]),
+            Tree::new(
+                "b.1".to_string(),
+                vec![Tree::new("c.2".to_string(), Vec::new())],
+            ),
+            Tree::new(
+                "d.1".to_string(),
+                vec![Tree::new("e.2".to_string(), Vec::new())],
+            ),
         ],
     );
 
-    // let iter_ref = GeneratorRef::<_, Tree<V, PartiallyApplied>, _, _>::new(
-    //     &t,
-    //     Box::new(|n: &Tree<&String, _>| if n.v.contains('b') { Some(*n.v) } else { None }),
-    // );
-
-    // TODO: as_ref impl
-    let iter = Generator::new(
-        t.clone(),
-        Box::new(|n| {
-            if n.v.contains('b') {
-                Some(n.v) 
-            } else {
-                None
-            }
-        }),
-    );
-
-    let find_results: Vec<_> = iter.filter_map(|x| x).collect();
+    let find_results: Vec<_> = t
+        .expand_iter(|n| if n.v.contains('b') { Some(&n.v) } else { None })
+        .filter_map(|x| x)
+        .collect();
 
     assert_eq!(find_results, vec!["b.1"]);
 
-    let iter = Generator::new(
-        t,
-        Box::new(|n| {
+    let elems: Vec<_> = t
+        .into_expand_iter(|n| {
             println!("visit: {:?}", n);
-            n.v
-        }),
-    );
-
-    let elems: Vec<_> = iter.collect();
+            n.v.clone() // TODO: clone here is JANK, should be take-careable? I think.
+        })
+        .collect();
 
     assert_eq!(vec!["a.0", "d.1", "e.2", "b.1", "c.2"], elems);
-
-    panic!("yolo");
 }
-
-// expand only, resulting in iterator
-// pub fn expand_generate<F: MappableFrame, Seed, Generated>(
-//     seed: Seed,
-//     mut expand_frame: impl FnMut(Seed) -> F::Frame<Seed>,
-//     mut generate: impl FnMut(F::Frame<F>) -> Generated,
-// ) -> Generator<F, S, G> {
-//     enum State<Seed, CollapsibleInternal> {
-//         Expand(usize, Seed),
-//         Collapse(usize, CollapsibleInternal),
-//     }
-
-//     let mut stack = vec![State::Expand(0, seed)];
-
-//     while let Some(item) = stack.pop() {
-//         match item {
-//             State::Expand(val_idx, seed) => {
-//                 let node = expand_frame(seed);
-//                 let mut seeds = Vec::new();
-//                 let node = F::map_frame(node, |seed| {
-//                     vals.push(None);
-//                     let idx = vals.len() - 1;
-//                     seeds.push(State::Expand(idx, seed));
-//                     idx
-//                 });
-
-//                 stack.push(State::Collapse(val_idx, node));
-//                 stack.extend(seeds);
-//             }
-//             State::Collapse(val_idx, node) => {
-//                 let node = F::map_frame(node, |k| vals[k].take().unwrap());
-//                 vals[val_idx] = Some(collapse_frame(node));
-//             }
-//         };
-//     }
-// }
