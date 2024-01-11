@@ -80,6 +80,13 @@ pub trait MappableFrameRefExt: MappableFrame {
     fn visit_subnodes<'a, A: 'a>(input: &'a Self::Frame<A>) -> Self::I<'a, A>;
 }
 
+pub trait MappableFrameRefExtMut: MappableFrame {
+    type I<'a, A: 'a>: Iterator<Item = &'a mut A>;
+
+    // todo idk rename or whatever. may expand later.
+    fn visit_subnodes_mut<'a, A: 'a>(input: &'a mut Self::Frame<A>) -> Self::I<'a, A>;
+}
+
 /// "An uninhabited type used to define [`MappableFrame`] instances for partially-applied types."
 ///
 /// For example: the MappableFrame instance for `MyFrame<A>` cannot be written over the
@@ -212,20 +219,19 @@ struct Generator<F: MappableFrame, Seed, Gen> {
     generate: Box<dyn for<'z> FnMut(F::Frame<&'z Seed>) -> Gen>,
 }
 
-struct GeneratorRef<'a, F: MappableFrameRefExt + 'a, Gen> {
+struct GeneratorRef<'a, F: MappableFrameRefExt + 'a> {
     stack: Vec<&'a Fix<F>>,
-    generate: Box<dyn FnMut(&'a <F as MappableFrame>::Frame<Fix<F>>) -> Gen>,
 }
 
-impl<'a, F: MappableFrameRefExt, G> GeneratorRef<'a, F, G> {
-    pub fn new(
-        seed: &'a Fix<F>,
-        generate: Box<dyn FnMut(&'a <F as MappableFrame>::Frame<Fix<F>>) -> G>,
-    ) -> Self {
-        Self {
-            stack: vec![&seed],
-            generate,
-        }
+pub struct GeneratorRefMut<'a, F: MappableFrameRefExtMut + 'a, G: 'a> {
+    stack: Vec<&'a mut Fix<F>>,
+    // TODO: figure out how to borrow values here I guess? should be able to (eg) return &str
+    digest: Box<dyn for<'z> FnMut(&'z mut F::Frame<Fix<F>>) -> G>,
+}
+
+impl<'a, F: MappableFrameRefExt> GeneratorRef<'a, F> {
+    pub fn new(seed: &'a Fix<F>) -> Self {
+        Self { stack: vec![&seed] }
     }
 }
 
@@ -262,14 +268,29 @@ impl<F: MappableFrame, S, G> Iterator for Generator<F, S, G> {
     }
 }
 
-impl<'a, F: MappableFrameRefExt, G> Iterator for GeneratorRef<'a, F, G> {
+impl<'a, F: MappableFrameRefExt> Iterator for GeneratorRef<'a, F> {
+    type Item = &'a F::Frame<Fix<F>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(Fix(frame)) = self.stack.pop() {
+            self.stack.extend(F::visit_subnodes(frame));
+            Some(frame.as_ref())
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, F: MappableFrameRefExtMut, G> Iterator for GeneratorRefMut<'a, F, G> {
+    // note: this can't just be the full mutable ref b/c we can't give that out and also give out mut subtrees
     type Item = G;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(Fix(frame)) = self.stack.pop() {
-            let gen = (self.generate)(frame.as_ref());
-            // TODO: decide if ref map frame gives internal value _or_ just a ref to it
-            self.stack.extend(F::visit_subnodes(frame));
+            // modify frame
+            let gen = (self.digest)(frame.as_mut());
+            // then visit subnodes
+            self.stack.extend(F::visit_subnodes_mut(frame));
             Some(gen)
         } else {
             None
@@ -299,25 +320,24 @@ impl<F: MappableFrame> Fix<F> {
 }
 
 impl<F: MappableFrameRefExt> Fix<F> {
-    pub fn expand_iter<'a, G>(
-        self: &'a Self,
-        generate: impl FnMut(&'a <F as MappableFrame>::Frame<Fix<F>>) -> G + 'static,
-    ) -> GeneratorRef<'a, F, G> {
-        GeneratorRef::new(self, Box::new(generate))
+    pub fn expand_iter<'a>(self: &'a Self) -> GeneratorRef<'a, F> {
+        GeneratorRef::new(self)
     }
 }
 
-// impl<F: MappableFrame> IntoIterator for Fix<F> {
-//     type Item = F::Frame<&'a Self>;
+impl<F: MappableFrameRefExtMut> Fix<F> {
+    pub fn expand_iter_mut<'a, G: 'a>(
+        self: &'a mut Self,
+        digest: impl for<'z> FnMut(&'z mut F::Frame<Fix<F>>) -> G + 'static,
+    ) -> GeneratorRefMut<'a, F, G> {
+        GeneratorRefMut {
+            digest: Box::new(digest),
+            stack: vec![self],
+        }
+    }
+}
 
-//     type IntoIter;
-
-//     fn into_iter(self) -> Self::IntoIter {
-//         todo!()
-//     }
-// }
-
-impl<V: core::fmt::Debug> core::fmt::Debug for Fix<Tree<V, PartiallyApplied>> {
+impl<V: core::fmt::Debug> core::fmt::Debug for Fix<TreeFrame<V, PartiallyApplied>> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut x = String::new();
 
@@ -330,28 +350,38 @@ impl<V: core::fmt::Debug> core::fmt::Debug for Fix<Tree<V, PartiallyApplied>> {
 }
 
 #[derive(Clone, Debug)]
-struct Tree<V, Next> {
+struct TreeFrame<V, Next> {
     v: V,
     elems: Vec<Next>,
 }
-impl<V> Tree<V, Fix<Tree<V, PartiallyApplied>>> {
-    pub fn new(v: V, elems: Vec<Fix<Tree<V, PartiallyApplied>>>) -> Fix<Tree<V, PartiallyApplied>> {
-        Fix::new(Tree { v, elems })
+impl<V> TreeFrame<V, Fix<TreeFrame<V, PartiallyApplied>>> {
+    pub fn new(
+        v: V,
+        elems: Vec<Fix<TreeFrame<V, PartiallyApplied>>>,
+    ) -> Fix<TreeFrame<V, PartiallyApplied>> {
+        Fix::new(TreeFrame { v, elems })
+    }
+
+    pub fn new_leaf(v: V) -> Fix<TreeFrame<V, PartiallyApplied>> {
+        Fix::new(TreeFrame {
+            v,
+            elems: Vec::new(),
+        })
     }
 }
 
-impl<V> MappableFrame for Tree<V, PartiallyApplied> {
-    type Frame<X> = Tree<V, X>;
+impl<V> MappableFrame for TreeFrame<V, PartiallyApplied> {
+    type Frame<X> = TreeFrame<V, X>;
 
     fn map_frame<A, B>(input: Self::Frame<A>, f: impl FnMut(A) -> B) -> Self::Frame<B> {
-        Tree {
+        TreeFrame {
             elems: input.elems.into_iter().map(f).collect(),
             v: input.v,
         }
     }
 }
 
-impl<V> MappableFrameRefExt for Tree<V, PartiallyApplied> {
+impl<V> MappableFrameRefExt for TreeFrame<V, PartiallyApplied> {
     type I<'a, A: 'a> = core::slice::Iter<'a, A>;
 
     fn visit_subnodes<'a, A: 'a>(input: &'a Self::Frame<A>) -> Self::I<'a, A> {
@@ -359,34 +389,60 @@ impl<V> MappableFrameRefExt for Tree<V, PartiallyApplied> {
     }
 }
 
+impl<V> MappableFrameRefExtMut for TreeFrame<V, PartiallyApplied> {
+    type I<'a, A: 'a> = core::slice::IterMut<'a, A>;
+
+    fn visit_subnodes_mut<'a, A: 'a>(input: &'a mut Self::Frame<A>) -> Self::I<'a, A> {
+        input.elems.iter_mut()
+    }
+}
+
+type Tree<V> = Fix<TreeFrame<V, PartiallyApplied>>;
+
 #[test]
 fn test_generator() {
-    let t = Tree::new(
+    let mut t = TreeFrame::new(
         "a.0".to_string(),
         vec![
-            Tree::new(
+            TreeFrame::new(
                 "b.1".to_string(),
-                vec![Tree::new("c.2".to_string(), Vec::new())],
+                vec![
+                    TreeFrame::new_leaf("c.2".to_string()),
+                    TreeFrame::new_leaf("d.2".to_string()),
+                ],
             ),
-            Tree::new(
-                "d.1".to_string(),
-                vec![Tree::new("e.2".to_string(), Vec::new())],
+            TreeFrame::new(
+                "e.1".to_string(),
+                vec![TreeFrame::new_leaf("f.2".to_string())],
             ),
         ],
     );
 
-    let find_result: Option<&str> = t
-        .expand_iter(|n| {
-            if n.v.contains('b') {
-                Some(n.v.as_str())
-            } else {
-                None
-            }
-        })
-        .filter_map(|x| x)
-        .next();
+    let find_and_count_subnodes = |p: char| {
+        t.expand_iter()
+            .filter(|node| node.v.contains(p))
+            .map(|node: &TreeFrame<String, Tree<String>>| {
+                let subnode_count = node.elems.iter().flat_map(|n| n.expand_iter()).count();
+                (node.v.as_str(), subnode_count)
+            })
+            .next()
+    };
 
-    assert_eq!(find_result, Some("b.1"));
+    assert_eq!(find_and_count_subnodes('b'), Some(("b.1", 2)));
+    assert_eq!(find_and_count_subnodes('a'), Some(("a.0", 5)));
+
+    let visited_during_mutation: Vec<_> = t
+        .expand_iter_mut(|x| {
+            if x.v == "b.1" {
+                x.elems.clear();
+            }
+            // TODO: shouldn't require clone
+            x.v.clone()
+        })
+        .collect();
+
+    // note that subnodes of trimmed tree node are not visited
+    assert_eq!(vec!["a.0", "e.1", "f.2", "b.1"], visited_during_mutation);
 
     let elems: Vec<String> = t
         .into_expand_iter(|n| {
@@ -395,5 +451,5 @@ fn test_generator() {
         })
         .collect();
 
-    assert_eq!(vec!["a.0", "d.1", "e.2", "b.1", "c.2"], elems);
+    assert_eq!(vec!["a.0", "e.1", "f.2", "b.1"], elems);
 }
