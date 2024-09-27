@@ -160,6 +160,4 @@ familiar with these idioms, there's a great blog post series [here](https://blog
 License: MIT OR Apache-2.0
 
 
-### Footnotes
-
 [^1]: sort of
