@@ -150,4 +150,14 @@ read [`MappableFrame`] as `Functor` and [`Expandable`]/[`Collapsible`] as `Corec
 familiar with these idioms, there's a great blog post series [here](https://blog.sumtypeofway.com/posts/introduction-to-recursion-schemes.html) that explains the various concepts involved.
 
 
+## Endorsements [^1]
+
+"i love seeing your bug reports tbh but also sometimes i wanna say “GATs dont need to be able to do this” 😂"\
+\- [@compiler-errors](https://github.com/compiler-errors)
+
+## License
+
 License: MIT OR Apache-2.0
+
+
+[^1]: sort of
