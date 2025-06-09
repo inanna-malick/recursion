@@ -85,7 +85,7 @@ pub enum PartiallyApplied {}
 /// This function is stack safe (it does not use the call stack), but it
 /// does use an internal stack data structure and is thus, technically,
 /// susceptible to stack overflows if said stack expands
-pub(crate) fn expand_and_collapse<F: MappableFrame, Seed, Out>(
+pub fn expand_and_collapse<F: MappableFrame, Seed, Out>(
     seed: Seed,
     mut expand_frame: impl FnMut(Seed) -> F::Frame<Seed>,
     mut collapse_frame: impl FnMut(F::Frame<Out>) -> Out,
@@ -131,7 +131,7 @@ pub(crate) fn expand_and_collapse<F: MappableFrame, Seed, Out>(
 /// This function is stack safe (it does not use the call stack), but it
 /// does use an internal stack data structure and is thus, technically,
 /// susceptible to stack overflows if said stack expands
-pub(crate) fn try_expand_and_collapse<F: MappableFrame, Seed, Out, E>(
+pub fn try_expand_and_collapse<F: MappableFrame, Seed, Out, E>(
     seed: Seed,
     mut expand_frame: impl FnMut(Seed) -> Result<F::Frame<Seed>, E>,
     mut collapse_frame: impl FnMut(F::Frame<Out>) -> Result<Out, E>,
