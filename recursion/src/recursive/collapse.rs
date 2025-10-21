@@ -189,6 +189,44 @@ where
         self,
         collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<Out>) -> Result<Out, E>,
     ) -> Result<Out, E>;
+
+    /// Given an instance of this type, collapse it into a single value of type `Out` by
+    /// traversing the recursive structure of `self`, generating frames, and collapsing
+    /// those frames using some function from `Frame<(Self, Out)> -> Out`.
+    ///
+    /// This function differs from `collapse_frames` in that the collapsing function
+    /// is given access to both the original seed value and the already-collapsed
+    /// values of its children, allowing for more complex collapsing behavior that
+    /// may depend on the original structure of the data.
+    ///
+    /// **Note**: It's recommended to use this function only when `Self` is a shared reference or
+    /// a referenced-counted pointer, as `self` is cloned during the recursion.
+    fn collapse_with_structure<Out>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<(Self, Out)>) -> Out,
+    ) -> Out
+    where
+        Self: Clone;
+
+    /// Given an instance of this type, collapse it into a single value of type `Result<Out, E>` by
+    /// traversing the recursive structure of `self`, generating frames, and collapsing
+    /// those frames using some function from `Frame<(Self, Out)> -> Result<Out, E>`.
+    ///
+    /// This function differs from `try_collapse_frames` in that the collapsing function
+    /// is given access to both the original seed value and the already-collapsed
+    /// values of its children, allowing for more complex collapsing behavior that
+    /// may depend on the original structure of the data.
+    ///
+    /// **Note**: It's recommended to use this function only when `Self` is a shared reference or
+    /// a referenced-counted pointer, as `self` is cloned during the recursion.
+    fn try_collapse_with_structure<Out, E>(
+        self,
+        collapse_frame: impl FnMut(
+            <Self::FrameToken as MappableFrame>::Frame<(Self, Out)>,
+        ) -> Result<Out, E>,
+    ) -> Result<Out, E>
+    where
+        Self: Clone;
 }
 
 impl<X> CollapsibleExt for X
@@ -213,4 +251,112 @@ where
             collapse_frame,
         )
     }
+
+    fn collapse_with_structure<T>(
+        self,
+        collapse_frame: impl FnMut(<Self::FrameToken as MappableFrame>::Frame<(Self, T)>) -> T,
+    ) -> T
+    where
+        Self: Clone,
+    {
+        collapse_with_structure(self, collapse_frame)
+    }
+
+    fn try_collapse_with_structure<T, E>(
+        self,
+        collapse_frame: impl FnMut(
+            <Self::FrameToken as MappableFrame>::Frame<(Self, T)>,
+        ) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        Self: Clone,
+    {
+        try_collapse_with_structure(self, collapse_frame)
+    }
+}
+
+fn collapse_with_structure<S: Collapsible + Clone, T>(
+    seed: S,
+    mut collapse_frame: impl FnMut(<S::FrameToken as MappableFrame>::Frame<(S, T)>) -> T,
+) -> T {
+    enum State<T> {
+        Unfold(usize, usize),
+        Fold(usize, T),
+    }
+
+    let mut vals = vec![None];
+    let mut seeds = vec![seed];
+    let mut stack = vec![State::Unfold(0, 0)];
+
+    while let Some(item) = stack.pop() {
+        match item {
+            State::Unfold(val_idx, seed_idx) => {
+                let node = seeds[seed_idx].clone().into_frame();
+                let mut children = Vec::new();
+                let node = S::FrameToken::map_frame(node, |seed| {
+                    let val_idx = vals.len();
+                    vals.push(None);
+                    let seed_idx = seeds.len();
+                    seeds.push(seed);
+                    children.push(State::Unfold(val_idx, seed_idx));
+                    (seed_idx, val_idx)
+                });
+
+                stack.push(State::Fold(val_idx, node));
+                stack.extend(children);
+            }
+            State::Fold(val_idx, node) => {
+                let node = S::FrameToken::map_frame(node, |(seed_idx, val_idx)| {
+                    let val = vals[val_idx].take().unwrap();
+                    let seed = seeds[seed_idx].clone();
+                    (seed, val)
+                });
+                vals[val_idx] = Some(collapse_frame(node));
+            }
+        };
+    }
+    vals[0].take().unwrap()
+}
+
+fn try_collapse_with_structure<S: Collapsible + Clone, T, E>(
+    seed: S,
+    mut algebra: impl FnMut(<S::FrameToken as MappableFrame>::Frame<(S, T)>) -> Result<T, E>,
+) -> Result<T, E> {
+    enum State<T> {
+        Unfold(usize, usize),
+        Fold(usize, T),
+    }
+
+    let mut vals = vec![None];
+    let mut seeds = vec![seed];
+    let mut stack = vec![State::Unfold(0, 0)];
+
+    while let Some(item) = stack.pop() {
+        match item {
+            State::Unfold(val_idx, seed_idx) => {
+                let node = seeds[seed_idx].clone().into_frame();
+                let mut children = Vec::new();
+                let node = S::FrameToken::map_frame(node, |seed| {
+                    let val_idx = vals.len();
+                    vals.push(None);
+                    let seed_idx = seeds.len();
+                    seeds.push(seed);
+                    children.push(State::Unfold(val_idx, seed_idx));
+                    (seed_idx, val_idx)
+                });
+
+                stack.push(State::Fold(val_idx, node));
+                stack.extend(children);
+            }
+            State::Fold(val_idx, node) => {
+                let node = S::FrameToken::map_frame(node, |(seed_idx, val_idx)| {
+                    let val = vals[val_idx].take().unwrap();
+                    let seed = seeds[seed_idx].clone();
+                    (seed, val)
+                });
+                vals[val_idx] = Some(algebra(node)?);
+            }
+        };
+    }
+    Ok(vals[0].take().unwrap())
 }
