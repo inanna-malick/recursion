@@ -1,6 +1,7 @@
 pub mod eval;
 pub mod monomorphic;
 pub mod naive;
+pub mod pretty;
 
 use futures::FutureExt;
 use recursion::{
